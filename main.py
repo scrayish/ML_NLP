@@ -35,7 +35,7 @@ def main():
                         default='C:/Users/matis/Documents/NLP_Files/Datafiles/all_data.json',
                         help='Give path to already processed data file, if no file, will create new in that path')
     parser.add_argument('-pwt', '--path_weight_pretrained', type=str,
-                        default='C:/Users/matis/Documents/NLP_Files/Model_WeightsLSTMSimple_PreTrained.tar',
+                        default='C:/Users/matis/Documents/NLP_Files/Model_Weights/LSTMSimple_PreTrained.tar',
                         help='Path for using pre-trained weights, if no pre-trained, then save new weights to path')
     parser.add_argument('-lg', '--path_tbx_logs', default=None, type=str,
                         help='Path for saving tensorboardX logs, if not given will use default parameter')
@@ -54,7 +54,7 @@ def main():
     parser.add_argument('-ly', '--layers', default=1, type=int,
                         help='set number of stacked cells in model (default=1)')
 
-    args = parser.parse_args()
+    args = parser.parse_args([])
 
     # Setting up device:
     if torch.cuda.is_available():
