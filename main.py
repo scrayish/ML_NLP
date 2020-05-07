@@ -14,7 +14,6 @@ import numpy as np
 from tqdm import tqdm
 import torchnet as tnt
 import matplotlib
-matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from utility import Utility as util
@@ -54,7 +53,7 @@ def main():
     parser.add_argument('-ly', '--layers', default=1, type=int,
                         help='set number of stacked cells in model (default=1)')
 
-    args = parser.parse_args([])
+    args = parser.parse_args()
 
     # Setting up device:
     if torch.cuda.is_available():
@@ -97,11 +96,12 @@ def main():
 
     # Weight coefficient for weighted CELoss
     weight_coefficients = util().data_weight_coefficients(word_count, total_word_count)
+    weight_coefficients = weight_coefficients.to(device)
 
     dataloader_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, collate_fn=util().collate_fn)
     dataloader_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, collate_fn=util().collate_fn)
 
-    model = Model(args, end_token)
+    model = Model(args, end_token).to(device=device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     fp = Path(args.path_weight_pretrained)
@@ -124,26 +124,20 @@ def main():
         }
         torch.save(state, args.path_weight_pretrained)
 
-    # Lists for loss and accuracy
-    train_loss_total = []
-    test_loss_total = []
-    train_acc_total = []
-    test_acc_total = []
-
     model_work_modes = ['train', 'test']
 
     plt.ion()
     plt.show()
 
     # Loop
-    for epoch in tqdm(range(epoch, epochs, 1), desc='training network'):
+    for epoch in tqdm(range(epoch, epochs, 1), desc='training network', ncols=100):
 
         for meter in param_dict:
             param_dict[meter].reset()
 
         for data_set in dataloader_train, dataloader_test:
 
-            for x, y, x_len in tqdm(data_set, desc='doing batches'):
+            for x, y, x_len in data_set:
                 if data_set is dataloader_train:
                     torch.set_grad_enabled(True)
                     mode = model_work_modes[0]
@@ -172,7 +166,6 @@ def main():
 
                 y_prim_padded = y_prim_padded.contiguous().view((y_prim_padded.size(0) * y_prim_padded.size(1), -1))
                 y_target = y_padded.contiguous().view((y_padded.size(0) * y_padded.size(1), 1)).to(device)
-                # Removed .to(device), so this happens on CPU, then send all to GPU together
                 tmp = torch.arange(end_token).reshape(1, end_token).to(device)
                 #  VVV == Such a hack - need explanation on this one, captain!
                 y_target = (y_target == tmp).float()   # one hot encoded 0.0 or 1.0
@@ -190,46 +183,44 @@ def main():
                 )
 
         # Model saving check:
-        mode = model_work_modes[1]
-        if param_dict[f'{mode}_loss'].value()[0] < loss_best:
+        if param_dict['test_loss'].value()[0] < loss_best:
             state = {
                 'epoch': epoch,
                 'model_state': model.state_dict(),
                 'optim_state': optimizer.state_dict(),
-                'loss': param_dict[f'{mode}_loss'].value()[0]
+                'loss': param_dict['test_loss'].value()[0]
             }
-            torch.save(state, filepath)
-            loss_best = param_dict[f'{mode}_loss'].value()[0]
+            torch.save(state, args.path_weight_pretrained)
+            loss_best = param_dict['test_loss'].value()[0]
 
         for mode in model_work_modes:
             writer.add_scalar(f'{mode} loss', param_dict[f'{mode}_loss'].value()[0], global_step=epoch + 1)
             writer.add_scalar(f'{mode} accuracy', param_dict[f'{mode}_acc'].value()[0], global_step=epoch + 1)
 
-
         # Rollout
         torch.set_grad_enabled(False)
-        y_done = []
         y_prim = []
         y_sentence = []
         rollout_sentence = []
         # Using only 1 word, so batch size is 1
-        h_s = (torch.zeros(size=(1, 1, hidden_size)).to('cpu'),
-               torch.zeros(size=(1, 1, hidden_size)).to('cpu'))
+        h_s = (torch.zeros(size=(layers, 1, hidden_size)).to(device),
+               torch.zeros(size=(layers, 1, hidden_size)).to(device))
         # Obtain 1st word from sample sentence (just one)
         y_t = x[-1][0]
         y_sentence.append(y_t.data.numpy().tolist())
-        y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)).to('cpu'))
+        y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)).to(device))
         y_prim.append(y_t)
         for _ in range(25):
             y_t, h_s = model.forward(y_prim[-1], h_s)
 
+            y_t = y_t.to('cpu')
             y_t = y_t.data.argmax()
             y_sentence.append(y_t.data.numpy().tolist())
             if y_t == end_token:
                 break
 
             y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
-            y_prim.append(y_t)
+            y_prim.append(y_t.to(device))
 
         for label in y_sentence:
             for key in vocabulary:
@@ -239,27 +230,6 @@ def main():
 
         rollout_string = ' '.join(rollout_sentence)
         writer.add_text(tag='Rollout sentence', text_string=rollout_string, global_step=epoch + 1)
-
-        train_loss_total.append(train_loss.value()[0])
-        test_loss_total.append(test_loss.value()[0])
-        train_acc_total.append(train_acc.value()[0])
-        test_acc_total.append(test_acc.value()[0])
-
-        plt.clf()
-        plt.subplot(2, 1, 1)
-        plt.plot(np.arange(epoch + 1), np.array(train_loss_total), 'r-', label='Train loss')
-        plt.plot(np.arange(epoch + 1), np.array(test_loss_total), 'b-', label='Test loss')
-        plt.legend()
-        plt.grid()
-        plt.subplot(2, 1, 2)
-        plt.plot(np.arange(epoch + 1), np.array(train_acc_total), 'g-', label='Train acc')
-        plt.plot(np.arange(epoch + 1), np.array(test_acc_total), 'y-', label='Test acc')
-        plt.legend()
-        plt.grid()
-        plt.draw()
-        plt.pause(1e-2)
-
-    plt.pause(0)
 
 
 if __name__ == '__main__':
