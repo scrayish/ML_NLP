@@ -30,12 +30,13 @@ class QuoteDataset(Dataset):
         return self.data[idx]
 
 
-def form_dataset(create_new, path_full, path_processed):
+def form_dataset(create_new, path_full, path_processed, data_range=0):
     # Preprocess data if needed, else open processed file
     if create_new:
         all_quotes, vocabulary,\
         word_count, total_word_count,\
-        end_token = dp().preprocess(path_data_full=path_full, path_data_processed=path_processed)
+        end_token = dp().preprocess(path_data_full=path_full,
+                                    path_data_processed=path_processed, data_range=data_range)
     else:
         all_quotes, vocabulary, \
         word_count, total_word_count, \

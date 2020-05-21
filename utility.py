@@ -13,7 +13,8 @@ class Utility(object):
     def __init__(self):
         pass
 
-    def f1score(self, y, y_prim):
+    @staticmethod
+    def f1score(y, y_prim):
         y_true = np.zeros((len(y),))
         y_pred = np.zeros((len(y_prim),))
 
@@ -25,7 +26,8 @@ class Utility(object):
 
         # Data labeling:
 
-    def words_to_label(self, quotes, vocabulary):
+    @staticmethod
+    def words_to_label(quotes, vocabulary):
         quotes_labeled = []
         for quote in quotes:
             words = quote.split()
@@ -39,8 +41,9 @@ class Utility(object):
 
         return quotes_labeled
 
-        # Function that can work with dynamic length sequences: (HP required above this function)
-    def collate_fn(self, batch_input):
+    # Function that can work with dynamic length sequences: (HP required above this function)
+    @staticmethod
+    def collate_fn(batch_input):
         x_input, y_input, x_len = zip(*batch_input)
 
         x_len_max = int(np.max(x_len))
@@ -67,7 +70,8 @@ class Utility(object):
 
         return (x, y, x_len_out)
 
-    def data_weight_coefficients(self, word_count, total_word_count):
+    @staticmethod
+    def data_weight_coefficients(word_count, total_word_count):
         word_coefficients = []
 
         for word in word_count:
@@ -79,4 +83,6 @@ class Utility(object):
         word_coefficients = torch.FloatTensor(word_coefficients)
         return word_coefficients
 
-
+    @staticmethod
+    def list_split():
+        pass

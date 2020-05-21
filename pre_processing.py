@@ -12,6 +12,7 @@ import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from collections import Counter
+from langid import langid
 
 
 class DataProcessor(object):
@@ -23,23 +24,40 @@ class DataProcessor(object):
         self.total_word_count: int
         self.end_token: int
 
-    def preprocess(self, path_data_full, path_data_processed, data_range=0):
+    def preprocess(self, path_data_full, path_data_processed, data_range):
         all_quotes = []
         words_hist = []
         # Different punctuations
         punct_dict = {
-            '.': '', '!': '', '?': '', '...': ' ', ',': ' ', ';': ' ', ':': ' ', '\u201D': ' ', '\u2019\u2019': ' ',
+            '.': ' ', '!': ' ', '?': ' ', '...': ' ', ',': ' ', ';': ' ', ':': ' ', '\u201D': ' ', '\u2019\u2019': ' ',
             ' \'': ' ', '\' ': ' ', '  ': ' ', '   ': ' ', '"': ' ', '--': ' ', '-': ' ', '\u201C': '', '\u2019': ' ',
             '\u2026': ' ', '(': ' ', ')': ' ', '[': ' ', ']': ' ', '{': ' ', '}': ' ', '\u2014': ' ', '+': ' ',
-            '[]': ' ', '()': ' ', '{}': ' ', '=': ' ', '♕': ' ', '@': ' ', '*': ' ', '&': ' ', '#': ' ', '~': ' ',
-            '\u2E2E': ' ', '\u2640': ' ', '\\': ' ', '/': ' ', '\u2665': ' ', '\u2764': ' '
+            '„': ' ', '[]': ' ', '()': ' ', '{}': ' ', '=': ' ', '♕': ' ', '@': ' ', '*': ' ', '&': ' and ', '#': ' ',
+            '~': ' ', '\u2E2E': ' ', '\u2640': ' ', '\\': ' ', '/': ' ', '\u2665': ' ', '\u2764': ' ', '\u2018': ' ',
+            '\u265B': ' ', '\u262F': ' ', '\u2013': ' ', '\uFF07': ' ', '\uFF07\uFF07': ' ', '\uFF40': ' ',
+            '\u02CB': ' ', '\u0300': ' ', '%': ' %', '\u02BC': ' ', '\u02BC\u02BC': ' ', 'ღ': ' ', '\u2500': ' ',
+            '\u202c': ' ', '\u0301': ' ', '\u202A': ' ', '<': ' ', '>': ' ', '❞': ' ', 'ε': ' ', '\u2637': ' ',
+            '↺': ' ', '®': ' ', '$': ' ', '❣': ' ', '\u2015': ' ', '\u0313': ' ', '\u201B': ' ', '\u2032': ' ',
+            '\u05F3': ' ', '\'': ' ', '`': ' ', '\u200E': ' ',
         }
         # Word combinations and "shortcuts"
         short_dict = {
-            'i\'m': 'i am', 'i\u2019m': 'i am', 'it\'s': 'it is', 'it\u2019s': 'it is', 'won\'t': 'will not',
-            'can\'t': 'cannot', '\'re': ' are', '\'ve': ' have', '\'ll': ' will', '\'d': ' would', 'n\'t': ' not',
-            '\'s': ' is', 'don\u2019t': 'do not', 'me\u2026': 'me', '\u2019s': ' is', '\u2019re': ' are',
-            'if\u2026': 'if ', 'day\u2026': 'day ', 'n\u2019t': ' not', '\u2019ll': ' will', '\u2019d': ' would'
+            'i\'m': 'i am', 'i\u0301m': 'i am', 'i\u2019m': 'i am', 'it\'s': 'it is', 'it\u2019s': 'it is',
+            'it´s': 'it is', '\u00B4ll': ' will', 'won\u00b4t': 'will not', '\u00B4re': ' are', '\u00B4ve': ' have',
+            'i\u00B4m': 'i am', 'won\'t': 'will not', 'i\u0060m': 'i am', 'man\'s': 'mans', 'won\u2019t': 'will not',
+            'can\'t': 'cannot', '\'re': ' are', 'can\u0060t': 'cannot', '\u0060ve': ' have', 'won\u0060t': 'will not',
+            'n\u0060t': ' not', '\u02B9s': ' is', '\u0374s': ' is', '\u0374ve': ' have', '\u0374re': 'are',
+            '\u02B9ve': ' have', '\u02B9re': 'are', '\'ve': ' have', '\'ll': ' will', '\u0060ll': ' will',
+            '\'d': ' would', 'n\'t': ' not', '\'s': ' is', 'don\u2019t': 'do not', 'me\u2026': 'me', '\u2019s': ' is',
+            '\u2019re': ' are', '\u0060re': ' are', 'if\u2026': 'if ', 'day\u2026': 'day ', 'n\u2019t': ' not',
+            '\u2019ll': ' will', '\u2019d': ' would', 'n´t': ' not', '\u0301re': ' are', '\u0301ve': ' have',
+            '̵͇̿̿з': ' ', '•̪ⓧ': ' ', '̵͇̿̿': ' ', 'isno': 'is no', 'kissand': 'kiss and', 'ryanlilly': 'ryan lilly',
+            'meand': 'me and', 'whatlooks': 'what looks', 'girlfriendcut': 'girlfriend cut', 'worldyou': 'world you',
+            'heavenis': 'heaven is', 'worldso': 'world so', 'havebetter': 'have better', 'unknownand': 'unknown and',
+            'allof': 'all of', 'tolook': 'to look', 'notaffect': 'not affect', 'likea ': 'like a ',
+            'wantedas': 'wanted as', 'agonyof': 'agony of', 'skillthat': 'skill that', 'worldsall': 'worlds all',
+            'awaywhat': 'away what', 'outwhat': 'out what', 'savewhat': 'save what', 'educationso': 'education so',
+            'anyday': 'any day', 'usdo': 'us do',
         }
         with open(path_data_full, encoding='utf8') as json_file:
             data = json.load(json_file)
@@ -47,6 +65,12 @@ class DataProcessor(object):
                 data_range = len(data)
             for i in range(data_range):
                 quote = data[i].get('Quote')
+
+                # Detect language - if not english, then skip over
+                # langID
+                check_ld = langid.classify(quote)
+                if check_ld[0] != 'en':
+                    continue
 
                 # Cleansing of quotes
                 quote = re.sub(r"(?<![A-Z])(?<!^)([A-Z])", r" \1", quote)

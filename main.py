@@ -27,6 +27,8 @@ def main():
                         help='Choose a model for usage (default = LSTMSimple)')
     parser.add_argument('-nd', '--make_new_datafile', default=False, type=bool,
                         help='If want to create a new data file, pass "True"')
+    parser.add_argument('-dr', '--data_range', default=0, type=int,
+                        help='For processing data set range, if left 0, then will default to full data range')
     parser.add_argument('-pf', '--path_dataset_full', type=str,
                         default='C:/Users/matis/Documents/NLP_Files/Datafiles/quotes.json',
                         help='Pass filepath to full dataset, if passed, will automatically process data for usage')
@@ -53,7 +55,7 @@ def main():
     parser.add_argument('-ly', '--layers', default=1, type=int,
                         help='set number of stacked cells in model (default=1)')
 
-    args = parser.parse_args()
+    args, args_other = parser.parse_known_args()
 
     # Setting up device:
     if torch.cuda.is_available():
@@ -65,7 +67,8 @@ def main():
     dataset_train, dataset_test, vocabulary, word_count, total_word_count, end_token = dataset.form_dataset(
         create_new=args.make_new_datafile,
         path_full=args.path_dataset_full,
-        path_processed=args.path_dataset_processed
+        path_processed=args.path_dataset_processed,
+        data_range=args.data_range,
     )
 
     # Hyper-parameters
@@ -78,6 +81,7 @@ def main():
     Model = getattr(__import__('models.' + args.model, fromlist=['Model']), 'Model')
     batch_size = args.batch_size
     hidden_size = args.hidden_size
+    # Check if bi-directional LSTM, double layer count in that case (2 directions for each layer)
     if args.model == "LSTMBinary":
         layers = args.layers * 2
     else:
@@ -95,11 +99,11 @@ def main():
     }
 
     # Weight coefficient for weighted CELoss
-    weight_coefficients = util().data_weight_coefficients(word_count, total_word_count)
+    weight_coefficients = util.data_weight_coefficients(word_count, total_word_count)
     weight_coefficients = weight_coefficients.to(device)
 
-    dataloader_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, collate_fn=util().collate_fn)
-    dataloader_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, collate_fn=util().collate_fn)
+    dataloader_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, collate_fn=util.collate_fn)
+    dataloader_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, collate_fn=util.collate_fn)
 
     model = Model(args, end_token).to(device=device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
@@ -179,7 +183,7 @@ def main():
 
                 param_dict[f'{mode}_loss'].add(loss.to('cpu').item())
                 param_dict[f'{mode}_acc'].add(
-                    util().f1score(y_target.detach().to('cpu'), y_prim_padded.detach().to('cpu'))
+                    util.f1score(y_target.detach().to('cpu'), y_prim_padded.detach().to('cpu'))
                 )
 
         # Model saving check:
