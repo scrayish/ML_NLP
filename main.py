@@ -2,6 +2,7 @@
 
 Main file for calling models and using them as needed for
 
+
 """
 
 from __future__ import print_function
@@ -13,8 +14,6 @@ import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
 import torchnet as tnt
-import matplotlib
-import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from utility import Utility as util
 import dataset
@@ -23,23 +22,19 @@ import dataset
 def main():
     # Argparse initialization:
     parser = argparse.ArgumentParser(description='Hyper parameters for model', add_help=True)
-    parser.add_argument('-M', '--model', default="LSTMSimple", type=str,
-                        help='Choose a model for usage (default = LSTMSimple)')
-    parser.add_argument('-nd', '--make_new_datafile', default=False, type=bool,
+    parser.add_argument('-M', '--model', type=str, required=True, help='Choose a model for usage')
+    parser.add_argument('-nd', '--make_new_datafile', default=False, type=lambda x: (str(x).lower() == 'true'),
                         help='If want to create a new data file, pass "True"')
-    parser.add_argument('-dr', '--data_range', default=0, type=int,
-                        help='For processing data set range, if left 0, then will default to full data range')
-    parser.add_argument('-pf', '--path_dataset_full', type=str,
-                        default='C:/Users/matis/Documents/NLP_Files/Datafiles/quotes.json',
+    parser.add_argument('-dr', '--data_range', default=0, type=int, required=False,
+                        help='For processing data set range, if \'0\', then will default to full data range')
+    parser.add_argument('-pf', '--path_dataset_full', type=str, required=True,
                         help='Pass filepath to full dataset, if passed, will automatically process data for usage')
-    parser.add_argument('-pr', '--path_dataset_processed', type=str,
-                        default='C:/Users/matis/Documents/NLP_Files/Datafiles/all_data.json',
+    parser.add_argument('-pr', '--path_dataset_processed', type=str, required=True,
                         help='Give path to already processed data file, if no file, will create new in that path')
-    parser.add_argument('-pwt', '--path_weight_pretrained', type=str,
-                        default='C:/Users/matis/Documents/NLP_Files/Model_Weights/LSTMSimple_PreTrained.tar',
+    parser.add_argument('-pwt', '--path_weight_pretrained', type=str, required=True,
                         help='Path for using pre-trained weights, if no pre-trained, then save new weights to path')
-    parser.add_argument('-lg', '--path_tbx_logs', default=None, type=str,
-                        help='Path for saving tensorboardX logs, if not given will use default parameter')
+    parser.add_argument('-lg', '--path_tbx_logs', default=None, type=str, required=False,
+                        help='Path for saving tensorboardX logs, if not given will use default location')
     parser.add_argument('-mh', '--need_hist', default=False, type=bool,
                         help='If need histogram of words and sentence length')
     parser.add_argument('-ep', '--epochs', default=50, type=int,
@@ -50,10 +45,6 @@ def main():
                         help='set the size for batches (default = 32)')
     parser.add_argument('-hs', '--hidden_size', default=128, type=int,
                         help='set the hidden size (default = 128)')
-    parser.add_argument('-ed', '--embedding_dims', default=32, type=int,
-                        help='set dimensions for embeddings (default = 32)')
-    parser.add_argument('-ly', '--layers', default=1, type=int,
-                        help='set number of stacked cells in model (default=1)')
 
     args, args_other = parser.parse_known_args()
 
@@ -64,7 +55,8 @@ def main():
         device = 'cpu'
 
     # Dataset formation
-    dataset_train, dataset_test, vocabulary, word_count, total_word_count, end_token = dataset.form_dataset(
+    dataset_train, dataset_test, vocabulary, word_count,\
+    total_word_count, end_token, quote_count, embeddings = dataset.form_dataset(
         create_new=args.make_new_datafile,
         path_full=args.path_dataset_full,
         path_processed=args.path_dataset_processed,
@@ -72,10 +64,11 @@ def main():
     )
 
     # Hyper-parameters
+    comment = f'LR_{args.learning_rate}_BATCH_{args.batch_size}_HIDDEN_{args.hidden_size}'
     if args.path_tbx_logs is None:
-        writer = SummaryWriter()
+        writer = SummaryWriter(comment=comment)
     else:
-        writer = SummaryWriter(logdir=args.path_tbx_logs)
+        writer = SummaryWriter(logdir=args.path_tbx_logs, comment=comment)
     epochs = args.epochs
     epoch = 0
     Model = getattr(__import__('models.' + args.model, fromlist=['Model']), 'Model')
@@ -83,14 +76,14 @@ def main():
     hidden_size = args.hidden_size
     # Check if bi-directional LSTM, double layer count in that case (2 directions for each layer)
     if args.model == "LSTMBinary":
-        layers = args.layers * 2
+        layers = 2
     else:
-        layers = args.layers
+        layers = 1
+
     train_loss = tnt.meter.AverageValueMeter()
     test_loss = tnt.meter.AverageValueMeter()
     train_acc = tnt.meter.AverageValueMeter()
     test_acc = tnt.meter.AverageValueMeter()
-    filepath = "C:/Users/matis/Documents/QuoteGen_Model_1.tar"
     param_dict = {
         'train_loss': train_loss,
         'test_loss': test_loss,
@@ -99,13 +92,13 @@ def main():
     }
 
     # Weight coefficient for weighted CELoss
-    weight_coefficients = util.data_weight_coefficients(word_count, total_word_count)
+    weight_coefficients = util.data_weights(word_count, total_word_count, quote_count)
     weight_coefficients = weight_coefficients.to(device)
 
     dataloader_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, collate_fn=util.collate_fn)
     dataloader_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, collate_fn=util.collate_fn)
 
-    model = Model(args, end_token).to(device=device)
+    model = Model(args, end_token, embeddings).to(device=device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     fp = Path(args.path_weight_pretrained)
@@ -130,9 +123,6 @@ def main():
 
     model_work_modes = ['train', 'test']
 
-    plt.ion()
-    plt.show()
-
     # Loop
     for epoch in tqdm(range(epoch, epochs, 1), desc='training network', ncols=100):
 
@@ -149,9 +139,9 @@ def main():
                     torch.set_grad_enabled(False)
                     mode = model_work_modes[1]
 
-                h_s = (torch.zeros(size=(layers, len(x), hidden_size)).to(device),
-                       torch.zeros(size=(layers, len(x), hidden_size)).to(device))
-
+                #h_s = (torch.zeros(size=(layers, len(x), hidden_size)).to(device),
+                       #torch.zeros(size=(layers, len(x), hidden_size)).to(device))
+                h_s = None
                 x_pack = torch.nn.utils.rnn.pack_sequence(x)
 
                 y_prim, h_s = model.forward(x_pack.to(device), h_s)
@@ -207,8 +197,9 @@ def main():
         y_sentence = []
         rollout_sentence = []
         # Using only 1 word, so batch size is 1
-        h_s = (torch.zeros(size=(layers, 1, hidden_size)).to(device),
-               torch.zeros(size=(layers, 1, hidden_size)).to(device))
+        #h_s = (torch.zeros(size=(layers, 1, hidden_size)).to(device),
+               #torch.zeros(size=(layers, 1, hidden_size)).to(device))
+        h_s = None
         # Obtain 1st word from sample sentence (just one)
         y_t = x[-1][0]
         y_sentence.append(y_t.data.numpy().tolist())
@@ -234,6 +225,9 @@ def main():
 
         rollout_string = ' '.join(rollout_sentence)
         writer.add_text(tag='Rollout sentence', text_string=rollout_string, global_step=epoch + 1)
+
+    print('all done')
+    #exit()
 
 
 if __name__ == '__main__':
