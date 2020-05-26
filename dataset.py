@@ -2,11 +2,13 @@
 
 File for dataset class
 
+
 """
 import torch
 from torch.utils.data import Dataset
 from pre_processing import DataProcessor as dp
 from utility import Utility as util
+from torchnlp.word_to_vector import GloVe
 
 
 # Define dataset class:
@@ -35,17 +37,22 @@ def form_dataset(create_new, path_full, path_processed, data_range=0):
     if create_new:
         all_quotes, vocabulary,\
         word_count, total_word_count,\
-        end_token = dp().preprocess(path_data_full=path_full,
-                                    path_data_processed=path_processed, data_range=data_range)
+        end_token, quote_count = dp().preprocess(path_data_full=path_full,
+                                                 path_data_processed=path_processed, data_range=data_range)
     else:
         all_quotes, vocabulary, \
         word_count, total_word_count, \
-        end_token = dp().open_preprocessed(path_data_processed=path_processed)
+        end_token, quote_count = dp().open_preprocessed(path_data_processed=path_processed)
 
-    # Create datasets:
+    # Create datasets and prepare embeddings:
+    glove = GloVe('6B')
+    # Get embeddings
+    embeddings = []
+    for word in word_count.keys():
+        embeddings.append(glove[word])
     all_quotes = util().words_to_label(all_quotes, vocabulary)
     x_data = all_quotes[:int(len(all_quotes) * 0.8)]
     y_data = all_quotes[int(len(all_quotes) * 0.8):]
     dataset_train = QuoteDataset(x_data, end_token)
     dataset_test = QuoteDataset(y_data, end_token)
-    return dataset_train, dataset_test, vocabulary, word_count, total_word_count, end_token
+    return dataset_train, dataset_test, vocabulary, word_count, total_word_count, end_token, quote_count, embeddings

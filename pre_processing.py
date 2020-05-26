@@ -9,10 +9,12 @@ import re
 import json
 import numpy as np
 import matplotlib
+import torch
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from collections import Counter
 from langid import langid
+from torchnlp.word_to_vector import GloVe
 
 
 class DataProcessor(object):
@@ -23,10 +25,15 @@ class DataProcessor(object):
         self.word_count: dict = None
         self.total_word_count: int
         self.end_token: int
+        self.quote_count: int
+
 
     def preprocess(self, path_data_full, path_data_processed, data_range):
         all_quotes = []
         words_hist = []
+        glove = GloVe('6B')
+        all_tokens = list(glove.token_to_index.keys())
+        embeddings_pretrained = []
         # Different punctuations
         punct_dict = {
             '.': ' ', '!': ' ', '?': ' ', '...': ' ', ',': ' ', ';': ' ', ':': ' ', '\u201D': ' ', '\u2019\u2019': ' ',
@@ -42,22 +49,25 @@ class DataProcessor(object):
         }
         # Word combinations and "shortcuts"
         short_dict = {
-            'i\'m': 'i am', 'i\u0301m': 'i am', 'i\u2019m': 'i am', 'it\'s': 'it is', 'it\u2019s': 'it is',
-            'it´s': 'it is', '\u00B4ll': ' will', 'won\u00b4t': 'will not', '\u00B4re': ' are', '\u00B4ve': ' have',
-            'i\u00B4m': 'i am', 'won\'t': 'will not', 'i\u0060m': 'i am', 'man\'s': 'mans', 'won\u2019t': 'will not',
-            'can\'t': 'cannot', '\'re': ' are', 'can\u0060t': 'cannot', '\u0060ve': ' have', 'won\u0060t': 'will not',
-            'n\u0060t': ' not', '\u02B9s': ' is', '\u0374s': ' is', '\u0374ve': ' have', '\u0374re': 'are',
-            '\u02B9ve': ' have', '\u02B9re': 'are', '\'ve': ' have', '\'ll': ' will', '\u0060ll': ' will',
-            '\'d': ' would', 'n\'t': ' not', '\'s': ' is', 'don\u2019t': 'do not', 'me\u2026': 'me', '\u2019s': ' is',
-            '\u2019re': ' are', '\u0060re': ' are', 'if\u2026': 'if ', 'day\u2026': 'day ', 'n\u2019t': ' not',
-            '\u2019ll': ' will', '\u2019d': ' would', 'n´t': ' not', '\u0301re': ' are', '\u0301ve': ' have',
-            '̵͇̿̿з': ' ', '•̪ⓧ': ' ', '̵͇̿̿': ' ', 'isno': 'is no', 'kissand': 'kiss and', 'ryanlilly': 'ryan lilly',
-            'meand': 'me and', 'whatlooks': 'what looks', 'girlfriendcut': 'girlfriend cut', 'worldyou': 'world you',
-            'heavenis': 'heaven is', 'worldso': 'world so', 'havebetter': 'have better', 'unknownand': 'unknown and',
-            'allof': 'all of', 'tolook': 'to look', 'notaffect': 'not affect', 'likea ': 'like a ',
-            'wantedas': 'wanted as', 'agonyof': 'agony of', 'skillthat': 'skill that', 'worldsall': 'worlds all',
-            'awaywhat': 'away what', 'outwhat': 'out what', 'savewhat': 'save what', 'educationso': 'education so',
-            'anyday': 'any day', 'usdo': 'us do',
+            'i\'m ': ' i am ', 'i\u0301m ': ' i am ', 'i\u2019m ': ' i am ', 'it\'s ': ' it is ', 'it\u2019s ': ' it is ',
+            'it´s ': ' it is ', '\u00B4ll': ' will ', 'won\u00b4t ': ' will not ', '\u00B4re ': ' are ',
+            '\u00B4ve ': ' have ', 'i\u00B4m ': ' i am ', ' won\'t ': ' will not ', 'i\u0060m ': ' i am ',
+            'man\'s ': ' mans ', 'won\u2019t ': ' will not ', 'can\'t ': ' cannot ', '\'re ': ' are ',
+            'can\u0060t ': ' cannot ', '\u0060ve ': ' have ', 'won\u0060t ': ' will not ', 'n\u0060t ': ' not ',
+            '\u02B9s ': ' is ', '\u0374s ': ' is ', '\u0374ve ': ' have ', '\u0374re ': ' are ', '\u02B9ve ': ' have ',
+            '\u02B9re ': ' are ', '\'ve ': ' have ', '\'ll ': ' will ', '\u0060ll ': ' will ', '\'d ': ' would ',
+            'n\'t ': ' not ', '\'s ': ' is ', 'don\u2019t ': ' do not ', 'me\u2026 ': ' me ', '\u2019s ': ' is ',
+            '\u2019re ': ' are ', '\u0060re ': ' are ', 'if\u2026 ': ' if ', 'day\u2026 ': ' day ', 'n\u2019t ': ' not ',
+            '\u2019ll ': ' will ', '\u2019d ': ' would ', 'n´t ': ' not ', '\u0301re ': ' are ', '\u0301ve ': ' have ',
+            '̵͇̿̿з ': ' ', '•̪ⓧ ': ' ', '̵͇̿̿ ': ' ', 'isno ': 'is no ', 'kissand ': 'kiss and', 'ryanlilly ': 'ryan lilly ',
+            'meand ': 'me and', 'whatlooks ': 'what looks', 'girlfriendcut ': 'girlfriend cut', 'worldyou ': ' world you ',
+            'heavenis ': ' heaven is ', 'worldso ': ' world so ', 'havebetter ': ' have better ',
+            'unknownand ': ' unknown and ', ' allof ': ' all of ', ' tolook ': ' to look ', ' notaffect ': ' not affect ',
+            'likea ': ' like a ', 'wantedas ': ' wanted as ', 'agonyof ': ' agony of ', 'skillthat ': ' skill that ',
+            'worldsall ': ' worlds all ', 'awaywhat ': ' away what ', 'outwhat ': ' out what ', 'savewhat ': ' save what ',
+            'educationso ': ' education so ', 'anyday ': ' any day ', 'usdo ': ' us do ',
+            ' dependsupona ': ' depends upon a', ' wheelbarrowglazed ': ' wheelbarrow glazed ', 'waterbeside': 'water beside',
+            ' whitechickens ': ' white chickens ',
         }
         with open(path_data_full, encoding='utf8') as json_file:
             data = json.load(json_file)
@@ -83,6 +93,21 @@ class DataProcessor(object):
                     for inst in diction:
                         quote = quote.replace(inst, diction[inst])
 
+                # Length control - if longer than 10 words, then fuck off mate
+                enable_length_control = True
+                if enable_length_control:
+                    if len(quote.split()) > 10:
+                        continue
+
+                # Check if word is in tokens, if not, drop sentence:
+                all_tokens_avail = True
+                for word in quote.split():
+                    if not word in all_tokens:
+                        all_tokens_avail = False
+                        break
+                if not all_tokens_avail:
+                    continue
+
                 all_quotes.append(quote)
                 for word in quote.split():
                     words_hist.append(word)
@@ -103,6 +128,7 @@ class DataProcessor(object):
                 if i == value:
                     self.all_quotes.remove(value)
                     break
+            self.quote_count = len(self.all_quotes)
 
         json_file.close()
 
@@ -111,10 +137,10 @@ class DataProcessor(object):
             'Quotes': self.all_quotes,
             'Vocabulary': self.vocabulary,
             'Word count': self.word_count,
-            'Words total': self.total_word_count
+            'Words total': self.total_word_count,
+            'Quotes total': self.quote_count,
         }
-        # Convert dict to JSON, so I can write in JSON file:
-        # q_and_v_json = json.dumps(qoutes_and_vocab)
+
         # Write to file:
         with open(path_data_processed, 'w') as outfile:
             json.dump(processed_data, outfile)
@@ -123,7 +149,8 @@ class DataProcessor(object):
         # Delete all variables that are not needed anymore to clear memory
         del data, quote, words_hist, words, count, all_quotes, vocabulary
         # Return all needed values:
-        return self.all_quotes, self.vocabulary, self.word_count, self.total_word_count, self.end_token
+        return self.all_quotes, self.vocabulary, self.word_count,\
+               self.total_word_count, self.end_token, self.quote_count,
 
     def open_preprocessed(self, path_data_processed):
         with open(path_data_processed, encoding='utf8') as json_file:
@@ -132,10 +159,12 @@ class DataProcessor(object):
             self.vocabulary = data['Vocabulary']
             self.word_count = data['Word count']
             self.total_word_count = data['Words total']
+            self.quote_count = data['Quotes total']
 
         json_file.close()
         self.end_token = len(self.vocabulary)
-        return self.all_quotes, self.vocabulary, self.word_count, self.total_word_count, self.end_token
+        return self.all_quotes, self.vocabulary, self.word_count,\
+               self.total_word_count, self.end_token, self.quote_count,
 
     def draw_histogram(self):
         # Count how many times each word shows up in quotes and draw histogram:

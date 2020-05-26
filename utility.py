@@ -71,18 +71,16 @@ class Utility(object):
         return (x, y, x_len_out)
 
     @staticmethod
-    def data_weight_coefficients(word_count, total_word_count):
-        word_coefficients = []
-
+    def data_weights(word_count, total_word_count, quote_count):
+        word_weights = []
         for word in word_count:
-            word_coefficients.append(word_count[word])
+            word_weight = 1.0 - word_count[word] / total_word_count
+            word_weights.append(word_weight)
 
-        word_coefficients = np.array(word_coefficients)
-        word_coefficients = 1 - word_coefficients / total_word_count
-        word_coefficients = np.append(word_coefficients, 1 / int(total_word_count / 2))
-        word_coefficients = torch.FloatTensor(word_coefficients)
-        return word_coefficients
+        word_weight = 1.0 - quote_count / total_word_count
+        word_weights.append(word_weight)
+        np_word_weights = np.array(word_weights)
+        #np_word_weights /= np.sum(np_word_weights)
+        t_word_weights =torch.FloatTensor(np_word_weights)
+        return t_word_weights
 
-    @staticmethod
-    def list_split():
-        pass
