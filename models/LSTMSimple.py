@@ -1,6 +1,7 @@
 """
 
-Simple LSTM RNN with fully connected layer at the end
+One directional RNN using one LSTM cell for computation
+
 
 """
 
@@ -11,19 +12,22 @@ from torch.nn.utils.rnn import PackedSequence
 
 
 class Model(nn.Module):
-    def __init__(self, arguments, word_count):
+    def __init__(self, args, word_count, embeddings):
         super(Model, self).__init__()
 
-        self.hidden_size = arguments.hidden_size
+        self.hidden_size = args.hidden_size
         self.word_count = word_count
-        self.embedding_dims = arguments.embedding_dims
-        self.batch_size = arguments.batch_size
+        self.embedding_dims = 300
+        self.batch_size = args.batch_size
+        embeddings.append(torch.rand((self.embedding_dims, )))
+        embedding_table = torch.stack(embeddings)
 
         # Define embedding:
         self.embedding = torch.nn.Embedding(
             num_embeddings=self.word_count,
             embedding_dim=self.embedding_dims,
-            padding_idx=0
+            padding_idx=0,
+            _weight=embedding_table,
         )
 
         self.lstm = torch.nn.LSTM(
@@ -33,13 +37,15 @@ class Model(nn.Module):
             num_layers=1,
             bias=True)
 
-        self.fc = torch.nn.Linear(in_features=self.hidden_size, out_features=self.word_count)
+        self.fc = torch.nn.Linear(in_features=self.hidden_size, out_features=self.embedding_dims)
+        self.fc1 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.hidden_size)
+        self.fc2 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.embedding_dims)
 
         # Weight and bias initialization
         for name, param in self.named_parameters():
-            if 'weight' in name:
+            if 'lstm.weight' in name:
                 nn.init.xavier_normal_(param)
-            if 'bias' in name:
+            if 'lstm.bias' in name:
                 n = param.size(0)
                 start, end = n//4, n//2
                 param.data[start:end].fill_(1.0)
@@ -65,7 +71,9 @@ class Model(nn.Module):
         # out = out.contiguous()
         # Same functionality as np.reshape - packed sequence has no .view
         # out = out.view(-1, self.h_s)
-        out = self.fc.forward(out.data)
+        out = self.fc1.forward(out.data)
+        out = self.fc2.forward(out)
+        out = torch.matmul(out, self.embedding.weight.t())
         #out = self.stable_softmax(out)
         out = torch.softmax(out + 1e-16, dim=1)
 
