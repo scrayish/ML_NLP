@@ -9,6 +9,7 @@ from __future__ import print_function
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import PackedSequence
+from torch.nn.parameter import Parameter
 
 
 class Model(nn.Module):
@@ -16,18 +17,18 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
         self.hidden_size = args.hidden_size
+        # Need +1 for padding embedding IMO
         self.word_count = word_count
+        # Hard-coded because of pre-trained embeddings
         self.embedding_dims = 300
         self.batch_size = args.batch_size
         embeddings.append(torch.rand((self.embedding_dims, )))
         embedding_table = torch.stack(embeddings)
 
         # Define embedding:
-        self.embedding = torch.nn.Embedding(
-            num_embeddings=self.word_count,
-            embedding_dim=self.embedding_dims,
-            padding_idx=0,
-            _weight=embedding_table,
+        self.embedding = torch.nn.Embedding.from_pretrained(
+            embeddings=embedding_table,
+            freeze=False,
         )
 
         self.lstm = torch.nn.LSTM(
@@ -35,15 +36,20 @@ class Model(nn.Module):
             input_size=self.embedding_dims,
             hidden_size=self.hidden_size,
             num_layers=1,
-            bias=True)
+            bias=True,
+        )
 
         self.fc = torch.nn.Linear(in_features=self.hidden_size, out_features=self.embedding_dims)
         self.fc1 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.hidden_size)
         self.fc2 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.embedding_dims)
+        self.fc3 = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.embedding_dims)
 
         # Weight and bias initialization
+
         for name, param in self.named_parameters():
-            if 'lstm.weight' in name:
+            if 'weight' in name:
+                if 'embedding' in name:
+                    continue
                 nn.init.xavier_normal_(param)
             if 'lstm.bias' in name:
                 n = param.size(0)

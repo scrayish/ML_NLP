@@ -33,14 +33,14 @@ class Model(nn.Module):
             num_layers=1,
             bias=True)
 
-        self.fc = torch.nn.Linear(in_features=self.hidden_size, out_features=self.embedding_dims)
-        self.out_tanh = torch.nn.Tanh()
+        self.fc1 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.embedding_dims)
+        self.fc2 = torch.nn.Linear(in_features=self.word_count, out_features=self.word_count)
 
         # Weight and bias initialization
         for name, param in self.named_parameters():
-            if 'weight' in name:
+            if 'lstm.weight' in name:
                 nn.init.xavier_normal_(param)
-            if 'bias' in name:
+            if 'lstm.bias' in name:
                 n = param.size(0)
                 start, end = n//4, n//2
                 param.data[start:end].fill_(1.0)
@@ -66,11 +66,10 @@ class Model(nn.Module):
         # out = out.contiguous()
         # Same functionality as np.reshape - packed sequence has no .view
         # out = out.view(-1, self.h_s)
-        out = self.fc.forward(out.data)
-
+        out = self.fc1.forward(out.data)
         # Transposed embedding weights to give more precision
         out = torch.matmul(out, self.embedding.weight.t())
-
+        out = self.fc2.forward(out)
         out = torch.softmax(out + 1e-16, dim=1)
 
         out = PackedSequence(

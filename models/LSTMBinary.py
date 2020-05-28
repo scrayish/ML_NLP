@@ -69,7 +69,6 @@ class Model(nn.Module):
         # Same functionality as np.reshape - packed sequence has no .view
         # out = out.view(-1, self.h_s)
         out = self.fc.forward(out.data)
-
         # Transposed embedding weights to give more precision
         out = torch.matmul(out, self.embedding.weight.t())
 

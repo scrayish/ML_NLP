@@ -16,6 +16,7 @@ from tqdm import tqdm
 import torchnet as tnt
 from torch.utils.data import DataLoader
 from utility import Utility as util
+from radam import RAdam
 import dataset
 
 
@@ -31,6 +32,8 @@ def main():
                         help='Pass filepath to full dataset, if passed, will automatically process data for usage')
     parser.add_argument('-pr', '--path_dataset_processed', type=str, required=True,
                         help='Give path to already processed data file, if no file, will create new in that path')
+    parser.add_argument('-sw', '--save_weights', default=False, type=bool,
+                        help='Save pre-trained weights, pass True if want to save (default is False)')
     parser.add_argument('-pwt', '--path_weight_pretrained', type=str, required=True,
                         help='Path for using pre-trained weights, if no pre-trained, then save new weights to path')
     parser.add_argument('-lg', '--path_tbx_logs', default=None, type=str, required=False,
@@ -99,7 +102,9 @@ def main():
     dataloader_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, collate_fn=util.collate_fn)
 
     model = Model(args, end_token, embeddings).to(device=device)
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    #optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = RAdam(model.parameters(), lr=args.learning_rate)
+
 
     fp = Path(args.path_weight_pretrained)
     IS_FILE = fp.is_file()

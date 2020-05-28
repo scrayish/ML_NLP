@@ -48,9 +48,11 @@ def form_dataset(create_new, path_full, path_processed, data_range=0):
     glove = GloVe('6B')
     # Get embeddings
     embeddings = []
+    # Append 1st embedding as pad embedding for intuition later onwards
+    #embeddings.append(torch.zeros_like(glove['word']))
     for word in word_count.keys():
         embeddings.append(glove[word])
-    all_quotes = util().words_to_label(all_quotes, vocabulary)
+    all_quotes = util.words_to_label(all_quotes, vocabulary)
     x_data = all_quotes[:int(len(all_quotes) * 0.8)]
     y_data = all_quotes[int(len(all_quotes) * 0.8):]
     dataset_train = QuoteDataset(x_data, end_token)

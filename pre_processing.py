@@ -96,7 +96,7 @@ class DataProcessor(object):
                 # Length control - if longer than 10 words, then fuck off mate
                 enable_length_control = True
                 if enable_length_control:
-                    if len(quote.split()) > 10:
+                    if len(quote.split()) > 5:
                         continue
 
                 # Check if word is in tokens, if not, drop sentence:
@@ -117,7 +117,7 @@ class DataProcessor(object):
             words_hist = words_hist.most_common(None)
             words, count = zip(*words_hist)
             self.word_count = dict(words_hist)
-            vocabulary = dict(enumerate(words, 1))
+            vocabulary = dict(enumerate(words))
             self.end_token = len(vocabulary) + 1
             vocabulary[f'{self.end_token}'] = self.end_token
             self.vocabulary = dict([(value, key) for key, value in vocabulary.items()])

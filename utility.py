@@ -10,8 +10,6 @@ from sklearn.metrics import f1_score
 
 
 class Utility(object):
-    def __init__(self):
-        pass
 
     @staticmethod
     def f1score(y, y_prim):
