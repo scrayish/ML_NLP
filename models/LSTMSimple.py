@@ -9,7 +9,6 @@ from __future__ import print_function
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import PackedSequence
-from torch.nn.parameter import Parameter
 
 
 class Model(nn.Module):
@@ -21,7 +20,6 @@ class Model(nn.Module):
         self.word_count = word_count
         # Hard-coded because of pre-trained embeddings
         self.embedding_dims = 300
-        self.batch_size = args.batch_size
         embeddings.append(torch.rand((self.embedding_dims, )))
         embedding_table = torch.stack(embeddings)
 
@@ -35,7 +33,7 @@ class Model(nn.Module):
             batch_first=True,
             input_size=self.embedding_dims,
             hidden_size=self.hidden_size,
-            num_layers=1,
+            num_layers=2,
             bias=True,
         )
 

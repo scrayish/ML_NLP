@@ -16,7 +16,6 @@ from tqdm import tqdm
 import torchnet as tnt
 from torch.utils.data import DataLoader
 from utility import Utility as util
-from radam import RAdam
 import dataset
 
 
@@ -102,8 +101,8 @@ def main():
     dataloader_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, collate_fn=util.collate_fn)
 
     model = Model(args, end_token, embeddings).to(device=device)
-    #optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    optimizer = RAdam(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    #optimizer = RAdam(model.parameters(), lr=args.learning_rate)
 
 
     fp = Path(args.path_weight_pretrained)
@@ -135,8 +134,11 @@ def main():
             param_dict[meter].reset()
 
         for data_set in dataloader_train, dataloader_test:
-
+            kekw = 0
             for x, y, x_len in data_set:
+
+                if kekw == 3: break
+
                 if data_set is dataloader_train:
                     torch.set_grad_enabled(True)
                     mode = model_work_modes[0]
@@ -181,16 +183,7 @@ def main():
                     util.f1score(y_target.detach().to('cpu'), y_prim_padded.detach().to('cpu'))
                 )
 
-        # Model saving check:
-        if param_dict['test_loss'].value()[0] < loss_best:
-            state = {
-                'epoch': epoch,
-                'model_state': model.state_dict(),
-                'optim_state': optimizer.state_dict(),
-                'loss': param_dict['test_loss'].value()[0]
-            }
-            torch.save(state, args.path_weight_pretrained)
-            loss_best = param_dict['test_loss'].value()[0]
+                kekw += 1
 
         for mode in model_work_modes:
             writer.add_scalar(f'{mode} loss', param_dict[f'{mode}_loss'].value()[0], global_step=epoch + 1)
@@ -231,8 +224,13 @@ def main():
         rollout_string = ' '.join(rollout_sentence)
         writer.add_text(tag='Rollout sentence', text_string=rollout_string, global_step=epoch + 1)
 
-    print('all done')
-    #exit()
+    state = {
+        'epoch': epoch,
+        'model_state': model.state_dict(),
+        'optim_state': optimizer.state_dict(),
+        'loss': param_dict['test_loss'].value()[0]
+    }
+    torch.save(state, args.path_weight_pretrained)
 
 
 if __name__ == '__main__':

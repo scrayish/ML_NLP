@@ -25,19 +25,37 @@ class Utility(object):
         # Data labeling:
 
     @staticmethod
-    def words_to_label(quotes, vocabulary):
-        quotes_labeled = []
-        for quote in quotes:
-            words = quote.split()
-            s_q_labeled = []
+    def words_to_label(quotes, vocabulary, rollout=False):
+        # If passing train/test data
+        if not rollout:
+            quotes_labeled = []
+            for quote in quotes:
+                words = quote.split()
+                s_q_labeled = []
 
-            for word in words:
-                s_q_labeled.append(vocabulary[word])
+                for word in words:
+                    s_q_labeled.append(vocabulary[word])
 
-            s_q_labeled = torch.LongTensor(np.asarray(s_q_labeled))
-            quotes_labeled.append(s_q_labeled)
+                s_q_labeled = torch.LongTensor(np.asarray(s_q_labeled))
+                quotes_labeled.append(s_q_labeled)
 
-        return quotes_labeled
+            return quotes_labeled
+        # If passing data for rollout
+        else:
+            # If passed a sequence of words
+            if len(quotes.split(' ')) > 1:
+                sequence_labeled = []
+                for word in quotes.split():
+                    sequence_labeled.append(vocabulary[word])
+
+                sequence_labeled = torch.LongTensor(np.asarray(sequence_labeled))
+                return sequence_labeled
+            # If passed one word
+            else:
+                word = []
+                word.append(vocabulary[quotes])
+                word = torch.squeeze(torch.LongTensor(np.asarray(word)))
+                return word
 
     # Function that can work with dynamic length sequences: (HP required above this function)
     @staticmethod

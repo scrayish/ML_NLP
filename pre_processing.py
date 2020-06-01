@@ -9,8 +9,6 @@ import re
 import json
 import numpy as np
 import matplotlib
-import torch
-matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from collections import Counter
 from langid import langid
@@ -119,7 +117,7 @@ class DataProcessor(object):
             self.word_count = dict(words_hist)
             vocabulary = dict(enumerate(words))
             self.end_token = len(vocabulary) + 1
-            vocabulary[f'{self.end_token}'] = self.end_token
+            vocabulary[f'{self.end_token - 1}'] = self.end_token
             self.vocabulary = dict([(value, key) for key, value in vocabulary.items()])
             all_quotes = set(all_quotes)
             self.all_quotes = list(all_quotes)
@@ -167,6 +165,7 @@ class DataProcessor(object):
                self.total_word_count, self.end_token, self.quote_count,
 
     def draw_histogram(self):
+        matplotlib.use("TkAgg")
         # Count how many times each word shows up in quotes and draw histogram:
         quote_len_hist = []
         for quote in self.all_quotes:
