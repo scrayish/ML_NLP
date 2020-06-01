@@ -98,8 +98,9 @@ def main():
                 # Since passed multiple words, but need only last output and last hidden,
                 # we pass only last output and take last hidden with us to model
                 y_t = y_t.data[-1].argmax()
-                y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
-                y_prim.append(y_t)
+                if fragment == input_data[-1]:
+                    y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
+                    y_prim.append(y_t)
         else:
             y_t = input_data
             y_sentence.append(y_t.data.numpy())
