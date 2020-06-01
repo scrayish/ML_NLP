@@ -134,11 +134,7 @@ def main():
             param_dict[meter].reset()
 
         for data_set in dataloader_train, dataloader_test:
-            kekw = 0
             for x, y, x_len in data_set:
-
-                if kekw == 3: break
-
                 if data_set is dataloader_train:
                     torch.set_grad_enabled(True)
                     mode = model_work_modes[0]
@@ -182,8 +178,6 @@ def main():
                 param_dict[f'{mode}_acc'].add(
                     util.f1score(y_target.detach().to('cpu'), y_prim_padded.detach().to('cpu'))
                 )
-
-                kekw += 1
 
         for mode in model_work_modes:
             writer.add_scalar(f'{mode} loss', param_dict[f'{mode}_loss'].value()[0], global_step=epoch + 1)
