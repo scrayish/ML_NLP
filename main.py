@@ -62,6 +62,7 @@ def main():
         create_new=args.make_new_datafile,
         path_full=args.path_dataset_full,
         path_processed=args.path_dataset_processed,
+        need_hist=args.need_hist,
         data_range=args.data_range,
     )
 
@@ -71,6 +72,7 @@ def main():
         writer = SummaryWriter(comment=comment)
     else:
         writer = SummaryWriter(logdir=args.path_tbx_logs, comment=comment)
+
     epochs = args.epochs
     epoch = 0
     Model = getattr(__import__('models.' + args.model, fromlist=['Model']), 'Model')
@@ -102,8 +104,6 @@ def main():
 
     model = Model(args, end_token, embeddings).to(device=device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    #optimizer = RAdam(model.parameters(), lr=args.learning_rate)
-
 
     fp = Path(args.path_weight_pretrained)
     IS_FILE = fp.is_file()

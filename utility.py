@@ -6,7 +6,10 @@ Class for holding utility functions
 from __future__ import print_function
 import torch
 import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
+from collections import Counter
 
 
 class Utility(object):
@@ -99,4 +102,61 @@ class Utility(object):
         #np_word_weights /= np.sum(np_word_weights)
         t_word_weights =torch.FloatTensor(np_word_weights)
         return t_word_weights
+
+    @staticmethod
+    def draw_histograms(all_quotes, vocabulary, word_count):
+        matplotlib.use("TkAgg")
+        # Count how many times each word shows up in quotes and draw histogram:
+        quote_len_hist = []
+        for quote in all_quotes:
+            quote_len_hist.append(len(quote.split()))
+
+        words = []
+        w_count = []
+        for i in vocabulary:
+            words.append(i)
+        for i in word_count:
+            w_count.append(word_count[i])
+        words = np.array(words)
+        w_count = np.array(w_count)
+        w_count_most = w_count[:100]
+        w_count_least = w_count[-101:-1]
+        words_most = words[:100]
+        words_least = words[-101:-1]
+        quote_len_hist = Counter(quote_len_hist)
+        quote_len_hist = sorted(quote_len_hist.items())
+
+        # Splits off words from their count
+        # TOP 100 most frequent words
+        indices = np.arange(len(words_most))
+        plt.figure(figsize=(16.0, 9.0))
+        plt.title("100 Visbiežāk sastopamie vārdi datos")
+        plt.bar(indices, w_count_most)
+        plt.xticks(ticks=indices, labels=words_most, rotation=90)
+        plt.xlabel("Vārdi")
+        plt.ylabel("Vārdu skaits")
+
+        # TOP 100 least frequent words
+        indices = np.arange(len(words_least))
+        plt.figure(figsize=(16.0, 9.0))
+        plt.title("100 Visretāk sastopamie vārdi datos")
+        plt.bar(indices, w_count_least)
+        plt.xticks(ticks=indices, labels=words_least, rotation=90)
+        plt.xlabel("Vārdi")
+        plt.ylabel("Vārdu skaits")
+
+        # Histogram plotting - Quote length histogram
+        quote_len, quote_len_count = zip(*quote_len_hist)
+        quote_len_count = np.array(list(quote_len_count))
+        indices = np.arange(len(quote_len))
+        plt.figure(figsize=(16.0, 9.0))
+        plt.title("Citātu skaits atkarībā no garuma")
+        plt.bar(indices, quote_len_count)
+        plt.xticks(indices, quote_len, rotation=90)
+        plt.xlabel("Citātu garumi")
+        plt.ylabel("Citātu skaits")
+
+        plt.ion()
+        plt.show()
+        del words, w_count, quote_len, quote_len_count, quote_len_hist, indices
 

@@ -7,9 +7,6 @@ Functions for pre-processing data for project
 from __future__ import print_function
 import re
 import json
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
 from collections import Counter
 from langid import langid
 from torchnlp.word_to_vector import GloVe
@@ -18,9 +15,9 @@ from torchnlp.word_to_vector import GloVe
 class DataProcessor(object):
     def __init__(self):
         super(DataProcessor, self).__init__()
-        self.all_quotes: list = None
-        self.vocabulary: dict = None
-        self.word_count: dict = None
+        self.all_quotes: list
+        self.vocabulary: dict
+        self.word_count: dict
         self.total_word_count: int
         self.end_token: int
         self.quote_count: int
@@ -31,11 +28,10 @@ class DataProcessor(object):
         words_hist = []
         glove = GloVe('6B')
         all_tokens = list(glove.token_to_index.keys())
-        embeddings_pretrained = []
         # Different punctuations
         punct_dict = {
-            '.': ' ', '!': ' ', '?': ' ', '...': ' ', ',': ' ', ';': ' ', ':': ' ', '\u201D': ' ', '\u2019\u2019': ' ',
-            ' \'': ' ', '\' ': ' ', '  ': ' ', '   ': ' ', '"': ' ', '--': ' ', '-': ' ', '\u201C': '', '\u2019': ' ',
+            '.': '', '!': ' ', '?': ' ', '...': ' ', ',': ' ', ';': ' ', ':': ' ', '\u201D': ' ', '\u2019\u2019': ' ',
+            ' \'': ' ', '\' ': ' ', '"': ' ', '--': ' ', '-': ' ', '\u201C': '', '\u2019': ' ',
             '\u2026': ' ', '(': ' ', ')': ' ', '[': ' ', ']': ' ', '{': ' ', '}': ' ', '\u2014': ' ', '+': ' ',
             '„': ' ', '[]': ' ', '()': ' ', '{}': ' ', '=': ' ', '♕': ' ', '@': ' ', '*': ' ', '&': ' and ', '#': ' ',
             '~': ' ', '\u2E2E': ' ', '\u2640': ' ', '\\': ' ', '/': ' ', '\u2665': ' ', '\u2764': ' ', '\u2018': ' ',
@@ -43,7 +39,7 @@ class DataProcessor(object):
             '\u02CB': ' ', '\u0300': ' ', '%': ' %', '\u02BC': ' ', '\u02BC\u02BC': ' ', 'ღ': ' ', '\u2500': ' ',
             '\u202c': ' ', '\u0301': ' ', '\u202A': ' ', '<': ' ', '>': ' ', '❞': ' ', 'ε': ' ', '\u2637': ' ',
             '↺': ' ', '®': ' ', '$': ' ', '❣': ' ', '\u2015': ' ', '\u0313': ' ', '\u201B': ' ', '\u2032': ' ',
-            '\u05F3': ' ', '\'': ' ', '`': ' ', '\u200E': ' ',
+            '\u05F3': ' ', '\'': ' ', '`': ' ', '\u200E': ' ',  '  ': ' ', '   ': ' ', '    ': ' ',
         }
         # Word combinations and "shortcuts"
         short_dict = {
@@ -65,7 +61,7 @@ class DataProcessor(object):
             'worldsall ': ' worlds all ', 'awaywhat ': ' away what ', 'outwhat ': ' out what ', 'savewhat ': ' save what ',
             'educationso ': ' education so ', 'anyday ': ' any day ', 'usdo ': ' us do ',
             ' dependsupona ': ' depends upon a', ' wheelbarrowglazed ': ' wheelbarrow glazed ', 'waterbeside': 'water beside',
-            ' whitechickens ': ' white chickens ',
+            ' whitechickens ': ' white chickens ', ' ain\'t ': ' aint ',
         }
         with open(path_data_full, encoding='utf8') as json_file:
             data = json.load(json_file)
@@ -81,7 +77,8 @@ class DataProcessor(object):
                     continue
 
                 # Cleansing of quotes
-                quote = re.sub(r"(?<![A-Z])(?<!^)([A-Z])", r" \1", quote)
+                #quote = re.sub(r"(?<![A-Z])(?<!^)([A-Z])", r" \1", quote)
+                quote = re.sub(r"\.(?!\s)(?!$)", r". ", quote)
                 quote = quote.lower()
                 quote = quote.strip('...')
                 quote = quote.strip('"')
@@ -92,7 +89,7 @@ class DataProcessor(object):
                         quote = quote.replace(inst, diction[inst])
 
                 # Length control - if longer than 10 words, then fuck off mate
-                enable_length_control = True
+                enable_length_control = False
                 if enable_length_control:
                     if len(quote.split()) > 5:
                         continue
@@ -106,9 +103,11 @@ class DataProcessor(object):
                 if not all_tokens_avail:
                     continue
 
-                all_quotes.append(quote)
-                for word in quote.split():
-                    words_hist.append(word)
+                # Filter empty quotes out (need content to be used, obviously):
+                if len(quote.split()) > 0:
+                    all_quotes.append(quote)
+                    for word in quote.split():
+                        words_hist.append(word)
 
             self.total_word_count = len(words_hist)
             words_hist = Counter(words_hist)
@@ -121,11 +120,13 @@ class DataProcessor(object):
             self.vocabulary = dict([(value, key) for key, value in vocabulary.items()])
             all_quotes = set(all_quotes)
             self.all_quotes = list(all_quotes)
-            value = ''
+            values = [' ', '', " ", ""]
             for i in self.all_quotes:
-                if i == value:
-                    self.all_quotes.remove(value)
-                    break
+                for value in values:
+                    if i == value:
+                        self.all_quotes.remove(value)
+                        break
+
             self.quote_count = len(self.all_quotes)
 
         json_file.close()
@@ -163,46 +164,3 @@ class DataProcessor(object):
         self.end_token = len(self.vocabulary)
         return self.all_quotes, self.vocabulary, self.word_count,\
                self.total_word_count, self.end_token, self.quote_count,
-
-    def draw_histogram(self):
-        matplotlib.use("TkAgg")
-        # Count how many times each word shows up in quotes and draw histogram:
-        quote_len_hist = []
-        for quote in self.all_quotes:
-            quote_len_hist.append(len(quote.split()))
-
-        words = []
-        w_count = []
-        for i in self.vocabulary:
-            words.append(i)
-        for i in self.word_count:
-            w_count.append(self.word_count[i])
-        words = np.array(words)
-        w_count = np.array(w_count)
-        w_count = w_count[:100]
-        words = words[:100]
-        quote_len_hist = Counter(quote_len_hist)
-
-        # Splits off words from their count
-        indices = np.arange(len(words))
-        bar_width = 0.2
-        # Histogram plotting - Words histogram
-        plt.figure(figsize=(14.4, 9.0))
-        plt.bar(indices, w_count)
-        plt.xticks(ticks=indices, labels=words, rotation=90)
-        plt.xlabel("words")
-        plt.ylabel("count per word")
-
-        # Histogram plotting - Quote length histogram
-        quote_len, quote_len_count = zip(*quote_len_hist)
-        quote_len_count = np.array(quote_len_count)
-        indices = np.arange(len(quote_len))
-        plt.figure(figsize=(14.4, 9.0))
-        plt.bar(indices, quote_len_count)
-        plt.xticks(indices, quote_len, rotation=90)
-        plt.xlabel("length of quotes")
-        plt.ylabel("quote count per length")
-
-        plt.ion()
-        plt.show()
-        del words, w_count, quote_len, quote_len_count, quote_len_hist, indices

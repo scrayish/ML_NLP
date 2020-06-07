@@ -15,10 +15,17 @@ from torchnlp.word_to_vector import GloVe
 class QuoteDataset(Dataset):
     def __init__(self, data, end_token):
         self.end_token = end_token
-        self.data = [self.prep_data(s, self.end_token) for s in data]
+        self.temp_data = data
+        self.data = []
+        #self.data = [self.prep_data(s, self.end_token) for s in self.temp_data]
+        i = 0
+        for s in data:
+            self.data.append(self.prep_data(s, self.end_token, i))
+            i += 1
 
     @staticmethod  # Prepares data
-    def prep_data(s, end_token):
+    def prep_data(s, end_token, i):
+        i = i
         x = torch.LongTensor(s)
         y = torch.roll(x, shifts=-1, dims=0)
         y[-1] = end_token
@@ -32,7 +39,7 @@ class QuoteDataset(Dataset):
         return self.data[idx]
 
 
-def form_dataset(create_new, path_full, path_processed, data_range=0):
+def form_dataset(create_new, path_full, path_processed, need_hist, data_range=0):
     # Preprocess data if needed, else open processed file
     if create_new:
         all_quotes, vocabulary,\
@@ -43,6 +50,10 @@ def form_dataset(create_new, path_full, path_processed, data_range=0):
         all_quotes, vocabulary, \
         word_count, total_word_count, \
         end_token, quote_count = dp().open_preprocessed(path_data_processed=path_processed)
+
+    # If need histograms, draw them:
+    if need_hist:
+        util.draw_histograms(all_quotes, vocabulary, word_count)
 
     # Create datasets and prepare embeddings:
     glove = GloVe('6B')
