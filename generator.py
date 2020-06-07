@@ -17,7 +17,7 @@ and pass them as arguments for the generator.
 
 NOTE: Model uses deep learning and has some limitations!
 
-If you pass the same word over and over again, it will generate the same quote over and over again.
+If you pass the same input over and over again, it will generate the same quote over and over again.
 That's not a bug, that's a limitation for model, as it has learned to generate that specific quote.
 To vary quotes, put in more words as input so you can get more variety.
 
@@ -61,12 +61,18 @@ def main():
     # Initialize model
     model = Model(args, end_token, embeddings).to(device=device)
 
-    # Load model state dictionary:
+    # Load model state dictionary and set up model for generating:
     state = torch.load(args.path_weights_pretrained, map_location=device)
     model.load_state_dict(state['model_state'])
+    # To make use of Dropout layers, if set to eval(), dropout won't work.
+    model.train()
+    # Disable grad because not required
+    torch.set_grad_enabled(False)
 
     # Loop for generation, generate to your hearts content!
     generate = True
+    print("Quote Generator v1.0")
+    print(f'Running model: {args.model}')
 
     while generate:
         print("Input the starting word or sequence")
@@ -74,6 +80,10 @@ def main():
         print("Input the length of quote to be generated (excluding start input)")
         length = input()
         length = int(length)
+        if input_data == '':
+            print("Empty input, defaulting to 'I'")
+            input_data = 'I'
+        input_data = input_data.lower()
         seq_length = len(input_data.split())
         input_data = util.words_to_label(input_data, vocabulary, rollout=True)
 
@@ -133,6 +143,8 @@ def main():
         response = input()
         if response == 'n' or response == 'N':
             generate = False
+
+    exit()
 
 
 if __name__ == '__main__':
