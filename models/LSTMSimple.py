@@ -16,14 +16,13 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
         self.hidden_size = args.hidden_size
-        # Need +1 for padding embedding IMO
         self.word_count = word_count
-        # Hard-coded because of pre-trained embeddings
+        # Cieti noteikta vērtība, jo izmantoti iepriekš trenētas vērtības
         self.embedding_dims = 300
         embeddings.append(torch.rand((self.embedding_dims, )))
         embedding_table = torch.stack(embeddings)
 
-        # Define embedding:
+        # Definē iegultās vērtības
         self.embedding = torch.nn.Embedding.from_pretrained(
             embeddings=embedding_table,
             freeze=False,
@@ -35,17 +34,16 @@ class Model(nn.Module):
             hidden_size=self.hidden_size,
             num_layers=2,
             bias=True,
+            dropout=0.5,
         )
 
-        self.fc = torch.nn.Linear(in_features=self.hidden_size, out_features=self.embedding_dims)
         self.fc1 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.hidden_size)
         self.fc2 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.embedding_dims)
-        self.fc3 = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.embedding_dims)
 
-        # Weight and bias initialization
-
+        # Svaru un nobīdes inicializācija
         for name, param in self.named_parameters():
             if 'weight' in name:
+                # Atkārtoti neinicializē iegulto vērtību svarus!
                 if 'embedding' in name:
                     continue
                 nn.init.xavier_normal_(param)
@@ -56,8 +54,6 @@ class Model(nn.Module):
 
     def forward(self, x: PackedSequence, h):
 
-        # (batch, seq*features)
-
         x = PackedSequence(
             self.embedding.forward(x.data),
             batch_sizes=x.batch_sizes,
@@ -65,20 +61,10 @@ class Model(nn.Module):
             unsorted_indices=x.unsorted_indices
         )
 
-        # Padding sequence
-        #x = torch.nn.utils.rnn.pad_packed_sequence(x)
-
-        # (Batch, seq, features)
         out, h = self.lstm.forward(x, h)
-        # Stiches multiple out segments together in one memory space
-        # No use when PackedSequence
-        # out = out.contiguous()
-        # Same functionality as np.reshape - packed sequence has no .view
-        # out = out.view(-1, self.h_s)
         out = self.fc1.forward(out.data)
         out = self.fc2.forward(out)
         out = torch.matmul(out, self.embedding.weight.t())
-        #out = self.stable_softmax(out)
         out = torch.softmax(out + 1e-16, dim=1)
 
         out = PackedSequence(
