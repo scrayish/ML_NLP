@@ -89,9 +89,9 @@ class DataProcessor(object):
                         quote = quote.replace(inst, diction[inst])
 
                 # Length control - if longer than 10 words, then fuck off mate
-                enable_length_control = False
+                enable_length_control = True
                 if enable_length_control:
-                    if len(quote.split()) > 5:
+                    if len(quote.split()) > 20:
                         continue
 
                 # Check if word is in tokens, if not, drop sentence:

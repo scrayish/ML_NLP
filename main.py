@@ -37,7 +37,7 @@ def main():
                         help='Path for using pre-trained weights, if no pre-trained, then save new weights to path')
     parser.add_argument('-lg', '--path_tbx_logs', default=None, type=str, required=False,
                         help='Path for saving tensorboardX logs, if not given will use default location')
-    parser.add_argument('-mh', '--need_hist', default=False, type=bool,
+    parser.add_argument('-mh', '--need_hist', default=False, type=lambda x: (str(x).lower() == 'true'),
                         help='If need histogram of words and sentence length')
     parser.add_argument('-ep', '--epochs', default=50, type=int,
                         help='choose for how many epochs to train model (default = 50)')
@@ -56,6 +56,13 @@ def main():
     else:
         device = 'cpu'
 
+    # Determine if need to use GloVe embeddings:
+    emb_phrase = 'Glove'
+    if emb_phrase in args.model:
+        use_glove = True
+    else:
+        use_glove = False
+
     # Dataset formation
     dataset_train, dataset_test, vocabulary, word_count,\
     total_word_count, end_token, quote_count, embeddings = dataset.form_dataset(
@@ -63,6 +70,7 @@ def main():
         path_full=args.path_dataset_full,
         path_processed=args.path_dataset_processed,
         need_hist=args.need_hist,
+        use_glove=use_glove,
         data_range=args.data_range,
     )
 
@@ -77,12 +85,6 @@ def main():
     epoch = 0
     Model = getattr(__import__('models.' + args.model, fromlist=['Model']), 'Model')
     batch_size = args.batch_size
-    hidden_size = args.hidden_size
-    # Check if bi-directional LSTM, double layer count in that case (2 directions for each layer)
-    if args.model == "LSTMBinary":
-        layers = 2
-    else:
-        layers = 1
 
     train_loss = tnt.meter.AverageValueMeter()
     test_loss = tnt.meter.AverageValueMeter()
@@ -102,7 +104,11 @@ def main():
     dataloader_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, collate_fn=util.collate_fn)
     dataloader_test = DataLoader(dataset_test, batch_size=batch_size, shuffle=False, collate_fn=util.collate_fn)
 
-    model = Model(args, end_token, embeddings).to(device=device)
+    # If embeddings are None, model doesn't need them, so initialize a bit differently
+    if embeddings is None:
+        model = Model(args, end_token).to(device=device)
+    else:
+        model = Model(args, end_token, embeddings).to(device=device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     fp = Path(args.path_weight_pretrained)
@@ -134,7 +140,7 @@ def main():
             param_dict[meter].reset()
 
         for data_set in dataloader_train, dataloader_test:
-            for x, y, x_len in data_set:
+            for x, y, x_len in tqdm(data_set):
                 if data_set is dataloader_train:
                     torch.set_grad_enabled(True)
                     mode = model_work_modes[0]

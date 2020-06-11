@@ -52,14 +52,20 @@ def main():
     all_quotes, vocabulary, \
     word_count, total_word_count, \
     end_token, quote_count = dp().open_preprocessed(path_data_processed=args.path_dataset_processed)
-    # Retrieve embeddings
-    glove = GloVe('6B')
-    embeddings = []
-    for word in word_count.keys():
-        embeddings.append(glove[word])
 
-    # Initialize model
-    model = Model(args, end_token, embeddings).to(device=device)
+    # Check model for embedding usage determination:
+    emb_phrase = 'Glove'
+    if emb_phrase in args.model:
+        # Retrieve embeddings
+        glove = GloVe('6B')
+        embeddings = []
+        for word in word_count.keys():
+            embeddings.append(glove[word])
+
+        # Initialize model
+        model = Model(args, end_token, embeddings).to(device=device)
+    else:
+        model = Model(args, end_token).to(device=device)
 
     # Load model state dictionary and set up model for generating:
     state = torch.load(args.path_weights_pretrained, map_location=device)

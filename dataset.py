@@ -39,7 +39,7 @@ class QuoteDataset(Dataset):
         return self.data[idx]
 
 
-def form_dataset(create_new, path_full, path_processed, need_hist, data_range=0):
+def form_dataset(create_new, path_full, path_processed, need_hist, use_glove: bool, data_range=0):
     # Preprocess data if needed, else open processed file
     if create_new:
         all_quotes, vocabulary,\
@@ -55,14 +55,19 @@ def form_dataset(create_new, path_full, path_processed, need_hist, data_range=0)
     if need_hist:
         util.draw_histograms(all_quotes, vocabulary, word_count)
 
-    # Create datasets and prepare embeddings:
-    glove = GloVe('6B')
-    # Get embeddings
-    embeddings = []
-    # Append 1st embedding as pad embedding for intuition later onwards
-    #embeddings.append(torch.zeros_like(glove['word']))
-    for word in word_count.keys():
-        embeddings.append(glove[word])
+    # If using GloVe, then use this:
+    if use_glove:
+        # Create datasets and prepare embeddings:
+        glove = GloVe('6B')
+        # Get embeddings
+        embeddings = []
+        # Append 1st embedding as pad embedding for intuition later onwards
+        #embeddings.append(torch.zeros_like(glove['word']))
+        for word in word_count.keys():
+            embeddings.append(glove[word])
+    else:
+        embeddings = None
+
     all_quotes = util.words_to_label(all_quotes, vocabulary)
     x_data = all_quotes[:int(len(all_quotes) * 0.8)]
     y_data = all_quotes[int(len(all_quotes) * 0.8):]
