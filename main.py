@@ -140,7 +140,7 @@ def main():
             param_dict[meter].reset()
 
         for data_set in dataloader_train, dataloader_test:
-            for x, y, x_len in tqdm(data_set):
+            for x, y, x_len in data_set:
                 if data_set is dataloader_train:
                     torch.set_grad_enabled(True)
                     mode = model_work_modes[0]
