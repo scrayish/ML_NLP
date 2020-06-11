@@ -1,7 +1,8 @@
 """
 
-LSTMSimple model - 2 LSTM cells and randomly initialized embeddings
+One directional RNN using two GRU cells for computation
 
+Using GloVe pre-trained embeddings as per training configuration
 
 """
 
@@ -12,15 +13,20 @@ from torch.nn.utils.rnn import PackedSequence
 
 
 class Model(nn.Module):
-    def __init__(self, args, word_count):
+    def __init__(self, args, word_count, embeddings):
         super(Model, self).__init__()
 
         self.hidden_size = args.hidden_size
-        # Leaving 300 embedding dimensions to be comparative with GloVe
+        self.word_count = word_count
+        # Cieti noteikta vērtība, jo izmantoti iepriekš trenētas vērtības
         self.embedding_dims = 300
-        self.embedding = torch.nn.Embedding(
-            num_embeddings=word_count,
-            embedding_dim=self.embedding_dims,
+        embeddings.append(torch.rand((self.embedding_dims, )))
+        embedding_table = torch.stack(embeddings)
+
+        # Definē iegultās vērtības
+        self.embedding = torch.nn.Embedding.from_pretrained(
+            embeddings=embedding_table,
+            freeze=False,
         )
 
         self.gru = torch.nn.GRU(
@@ -44,7 +50,7 @@ class Model(nn.Module):
                 nn.init.xavier_normal_(param)
             if 'lstm.bias' in name:
                 n = param.size(0)
-                start, end = n // 4, n // 2
+                start, end = n//4, n//2
                 param.data[start:end].fill_(1.0)
 
     def forward(self, x: PackedSequence, h):

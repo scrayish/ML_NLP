@@ -1,6 +1,6 @@
 """
 
-LSTMSimple model - 2 LSTM cells and randomly initialized embeddings
+GRU Simple model - 2 GRU cells and randomly initialized embeddings
 
 
 """
