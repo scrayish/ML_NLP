@@ -10,6 +10,7 @@ Inside the folder "models" are 4 models used in thesis:
 4) GRU RNN using GloVe 6B (300d) embeddings
 
 Notes:
+
 Random embeddings are initialized to 300 dimensions to be on par with GloVe
 
 main.py contains main executable for training models
