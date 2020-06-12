@@ -16,7 +16,7 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
         self.hidden_size = args.hidden_size
-        # Leaving 300 embedding dimensions to be comparative with GloVe
+        # vērtību izmērs 300, lai sakristu ar GloVe
         self.embedding_dims = 300
         self.embedding = torch.nn.Embedding(
             num_embeddings=word_count,

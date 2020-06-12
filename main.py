@@ -224,13 +224,15 @@ def main():
         rollout_string = ' '.join(rollout_sentence)
         writer.add_text(tag='Rollout sentence', text_string=rollout_string, global_step=epoch + 1)
 
-    state = {
-        'epoch': epoch,
-        'model_state': model.state_dict(),
-        'optim_state': optimizer.state_dict(),
-        'loss': param_dict['test_loss'].value()[0]
-    }
-    torch.save(state, args.path_weight_pretrained)
+        # Save weights after 30th epoch because shit weights have no meaning
+        if epoch >= 30:
+            state = {
+                'epoch': epoch,
+                'model_state': model.state_dict(),
+                'optim_state': optimizer.state_dict(),
+                'loss': param_dict['test_loss'].value()[0]
+            }
+            torch.save(state, args.path_weight_pretrained)
 
 
 if __name__ == '__main__':

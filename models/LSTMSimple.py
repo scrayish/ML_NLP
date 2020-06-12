@@ -16,14 +16,14 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
         self.hidden_size = args.hidden_size
-        # Leaving 300 embedding dimensions to be comparative with GloVe
+        # vērtību izmērs 300, lai sakristu ar GloVe
         self.embedding_dims = 300
         self.embedding = torch.nn.Embedding(
             num_embeddings=word_count,
             embedding_dim=self.embedding_dims,
         )
 
-        self.gru = torch.nn.GRU(
+        self.lstm = torch.nn.LSTM(
             batch_first=True,
             input_size=self.embedding_dims,
             hidden_size=self.hidden_size,
@@ -56,7 +56,7 @@ class Model(nn.Module):
             unsorted_indices=x.unsorted_indices
         )
 
-        out, h = self.gru.forward(x, h)
+        out, h = self.lstm.forward(x, h)
         out = self.fc1.forward(out.data)
         out = self.fc2.forward(out)
         out = torch.matmul(out, self.embedding.weight.t())
