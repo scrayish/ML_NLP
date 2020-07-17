@@ -17,9 +17,7 @@ main.py contains main executable for training models
 
 dataset.py initializes datasets
 
-pre_processing.py contains data preprocessing, also supports opening already preprocessed data files, if they're preprocessed
-
-by this same preprocessing function
+pre_processing.py contains data preprocessing, also supports opening already preprocessed data files, if they're preprocessed by this same preprocessing function
 
 utility.py contains utility functions used in preprocessing and other calculations
 
