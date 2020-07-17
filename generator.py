@@ -21,7 +21,7 @@ If you pass the same input over and over again, it will generate the same quote 
 That's not a bug, that's a limitation for model, as it has learned to generate that specific quote.
 To vary quotes, put in more words as input so you can get more variety.
 
-
+12.06.2020. ^^^ This is no longer the case lads! All good!
 """
 
 from __future__ import print_function
