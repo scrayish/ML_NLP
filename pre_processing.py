@@ -114,9 +114,9 @@ class DataProcessor(object):
             words_hist = words_hist.most_common(None)
             words, count = zip(*words_hist)
             self.word_count = dict(words_hist)
-            vocabulary = dict(enumerate(words))
+            vocabulary = dict(enumerate(words, 1))
             self.end_token = len(vocabulary) + 1
-            vocabulary[f'{self.end_token - 1}'] = self.end_token
+            vocabulary[f'{self.end_token}'] = self.end_token
             self.vocabulary = dict([(value, key) for key, value in vocabulary.items()])
             all_quotes = set(all_quotes)
             self.all_quotes = list(all_quotes)
