@@ -21,7 +21,9 @@ import dataset
 
 def main():
     # Argparse initialization:
-    parser = argparse.ArgumentParser(description='Hyper parameters for model', add_help=True)
+    parser = argparse.ArgumentParser(description='Hyper parameters for models. For using RNN, pass hidden_size. for '
+                                                 'using Transformer, pass layer_count, s_a_unit_count and dimensions.',
+                                     add_help=True)
     parser.add_argument('-M', '--model', type=str, required=True, help='Choose a model for usage')
     parser.add_argument('-nd', '--make_new_datafile', default=False, type=lambda x: (str(x).lower() == 'true'),
                         help='If want to create a new data file, pass "True"')
@@ -45,8 +47,14 @@ def main():
                         help='set a learning rate for model (default = 1e-3)')
     parser.add_argument('-bs', '--batch_size', default=32, type=int,
                         help='set the size for batches (default = 32)')
-    parser.add_argument('-hs', '--hidden_size', default=128, type=int,
-                        help='set the hidden size (default = 128)')
+    parser.add_argument('-hs', '--hidden_size', default=128, type=int, required=False,
+                        help='set the hidden size (RNN only)')
+    parser.add_argument('-sau', '--s_a_unit_count', required=False, type=int, default=5,
+                        help="Self attention unit count for model (Transformer only)")
+    parser.add_argument('-lc', '--layer_count', required=False, type=int, default=2,
+                        help="How many encoding/decoding layers (Transformer only)")
+    parser.add_argument('-d', '--dimensions', required=False, type=int, default=64,
+                        help="Inner dimensions for Q, K, V Matrices (Transformer only)")
 
     args, args_other = parser.parse_known_args()
 
@@ -58,7 +66,7 @@ def main():
 
     # Determine if need to use GloVe embeddings:
     emb_phrase = 'Glove'
-    if emb_phrase in args.model:
+    if emb_phrase in args.model or 'Transformer' in args.model:
         use_glove = True
     else:
         use_glove = False
@@ -108,7 +116,7 @@ def main():
     if embeddings is None:
         model = Model(args, end_token).to(device=device)
     else:
-        model = Model(args, end_token, embeddings).to(device=device)
+        model = Model(args, embeddings).to(device=device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     fp = Path(args.path_weight_pretrained)
@@ -133,6 +141,12 @@ def main():
 
     model_work_modes = ['train', 'test']
 
+    # Do a check for transformer or LSTM/GRU for modifications in training loop:
+    if 'Transformer' in args.model:
+        transformer = True
+    else:
+        transformer = False
+
     # Loop
     for epoch in tqdm(range(epoch, epochs, 1), desc='training network', ncols=100):
 
@@ -140,7 +154,7 @@ def main():
             param_dict[meter].reset()
 
         for data_set in dataloader_train, dataloader_test:
-            for x, y, x_len in data_set:
+            for x, y, x_len in tqdm(data_set, desc="Going through data"):
                 if data_set is dataloader_train:
                     torch.set_grad_enabled(True)
                     mode = model_work_modes[0]
@@ -148,32 +162,49 @@ def main():
                     torch.set_grad_enabled(False)
                     mode = model_work_modes[1]
 
-                #h_s = (torch.zeros(size=(layers, len(x), hidden_size)).to(device),
-                       #torch.zeros(size=(layers, len(x), hidden_size)).to(device))
-                h_s = None
-                x_pack = torch.nn.utils.rnn.pack_sequence(x)
+                # Setup training with Transformer/(LSTM/GRU):
+                if transformer:
+                    # Padding sequences:
+                    x_padded = torch.nn.utils.rnn.pad_sequence(
+                        sequences=x,
+                        batch_first=True,
+                        padding_value=0,
+                    )
+                    y_padded = torch.nn.utils.rnn.pad_sequence(
+                        sequences=y,
+                        batch_first=True,
+                        padding_value=0,
+                    )
+                    y_prim = model.forward(x_padded.to(device), y_padded.to(device))
 
-                y_prim, h_s = model.forward(x_pack.to(device), h_s)
+                else:
+                    h_s = None
+                    x_pack = torch.nn.utils.rnn.pack_sequence(x)
 
-                y_prim_padded, len_out = torch.nn.utils.rnn.pad_packed_sequence(
-                    y_prim,
-                    batch_first=True,
-                    total_length=x_len[0]
-                )
+                    y_prim, h_s = model.forward(x_pack.to(device), h_s)
 
-                y_padded, len_out_y = torch.nn.utils.rnn.pad_packed_sequence(
-                    torch.nn.utils.rnn.pack_sequence(y),
-                    batch_first=True,
-                    total_length=x_len[0]
-                )
+                    y_prim, len_out = torch.nn.utils.rnn.pad_packed_sequence(
+                        y_prim,
+                        batch_first=True,
+                        total_length=x_len[0]
+                    )
 
-                y_prim_padded = y_prim_padded.contiguous().view((y_prim_padded.size(0) * y_prim_padded.size(1), -1))
+                    y_padded, len_out_y = torch.nn.utils.rnn.pad_packed_sequence(
+                        torch.nn.utils.rnn.pack_sequence(y),
+                        batch_first=True,
+                        total_length=x_len[0]
+                    )
+
+                # Create y_target OHE vectors for loss calculation and contiguous variables to one memory space:
+                y_prim = y_prim.contiguous().view((y_prim.size(0) * y_prim.size(1), -1))
                 y_target = y_padded.contiguous().view((y_padded.size(0) * y_padded.size(1), 1)).to(device)
-                tmp = torch.arange(end_token).reshape(1, end_token).to(device)
+                tmp = torch.arange(end_token + 1).reshape(1, -1).to(device)
                 #  VVV == Such a hack - need explanation on this one, captain!
                 y_target = (y_target == tmp).float()   # one hot encoded 0.0 or 1.0
 
-                loss = torch.mean(-torch.sum(weight_coefficients * y_target * torch.log(y_prim_padded + 1e-16), dim=1))
+                # Calculate loss:
+                loss = torch.mean(-torch.sum(weight_coefficients * y_target * torch.log(y_prim + 1e-16),
+                                             dim=1))
 
                 if data_set is dataloader_train:
                     loss.backward()
@@ -181,46 +212,76 @@ def main():
                     model.zero_grad()
 
                 param_dict[f'{mode}_loss'].add(loss.to('cpu').item())
-                param_dict[f'{mode}_acc'].add(
-                    util.f1score(y_target.detach().to('cpu'), y_prim_padded.detach().to('cpu'))
-                )
+                # Calculate accuracy:
+                if transformer:
+                    param_dict[f'{mode}_acc'].add(
+                        util.f1score(y_target.detach().to('cpu'), y_prim.detach().to('cpu'))
+                    )
+                else:
+                    param_dict[f'{mode}_acc'].add(
+                        util.f1score(y_target.detach().to('cpu'), y_prim.detach().to('cpu'))
+                    )
 
+        # Save loss/accuracy measures to writer:
         for mode in model_work_modes:
             writer.add_scalar(f'{mode} loss', param_dict[f'{mode}_loss'].value()[0], global_step=epoch + 1)
             writer.add_scalar(f'{mode} accuracy', param_dict[f'{mode}_acc'].value()[0], global_step=epoch + 1)
 
-        # Rollout
+        # Rollout operation. Starting with default set parameters:
+        # TODO: Re-define rollout operation so transformer can be rolled out as well. = DONE
         torch.set_grad_enabled(False)
         y_prim = []
         y_sentence = []
         rollout_sentence = []
-        # Using only 1 word, so batch size is 1
-        #h_s = (torch.zeros(size=(layers, 1, hidden_size)).to(device),
-               #torch.zeros(size=(layers, 1, hidden_size)).to(device))
-        h_s = None
-        # Obtain 1st word from sample sentence (just one)
-        y_t = x[-1][0]
-        y_sentence.append(y_t.data.numpy().tolist())
-        y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)).to(device))
-        y_prim.append(y_t)
-        for _ in range(25):
-            y_t, h_s = model.forward(y_prim[-1], h_s)
-
-            y_t = y_t.to('cpu')
-            y_t = y_t.data.argmax()
+        if transformer:
+            # Get starting word and generate random output for transformer:
+            # 1st attempt - generating random sequence for decoder input.
+            y_t = x[-1][0]
+            y_t = y_t.reshape(shape=(1, 1)).to(device)
             y_sentence.append(y_t.data.numpy().tolist())
-            if y_t == end_token:
-                break
+            y_prim.append(y_t)
+            # Generate rollout sequence by feeding network output as input:
+            for _ in range(25):
+                y = torch.randint(low=0, high=end_token + 1, size=y_t.size())
+                y_t = model.forward(y_prim[-1], y)
+                y_t = y_t.to('cpu')
+                y_t = y_t.data.argmax()
+                y_sentence.append(y_t.data.numpy().tolist())
 
-            y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
-            y_prim.append(y_t.to(device))
+                y_t = y_t.reshape(shape=(1, 1))
+                y_prim.append(y_t.to(device))
+            pass
+        else:
+            # Using only 1 word, so batch size is 1
+            h_s = None
+            # Obtain 1st word from sample sentence (just one)
+            y_t = x[-1][0]
+            y_sentence.append(y_t.data.numpy().tolist())
+            y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)).to(device))
+            y_prim.append(y_t)
+            # Generate rollout sequence by feeding network output as input:
+            for _ in range(25):
+                y_t, h_s = model.forward(y_prim[-1], h_s)
 
+                # Send output to cpu and transform to predicted label:
+                y_t = y_t.to('cpu')
+                y_t = y_t.data.argmax()
+                y_sentence.append(y_t.data.numpy().tolist())
+                # If network generates EOS token, break the loop:
+                if y_t == end_token:
+                    break
+
+                y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
+                y_prim.append(y_t.to(device))
+
+        # Replace word labels with words from dictionary:
         for label in y_sentence:
             for key in vocabulary:
                 if vocabulary[key] == label:
                     rollout_sentence.append(key)
                     break
 
+        # Join words into one string and save to writer object as rollout result:
         rollout_string = ' '.join(rollout_sentence)
         writer.add_text(tag='Rollout sentence', text_string=rollout_string, global_step=epoch + 1)
 
