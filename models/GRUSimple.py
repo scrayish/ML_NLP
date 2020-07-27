@@ -19,8 +19,9 @@ class Model(nn.Module):
         # vērtību izmērs 300, lai sakristu ar GloVe
         self.embedding_dims = 300
         self.embedding = torch.nn.Embedding(
-            num_embeddings=word_count,
+            num_embeddings=word_count + 1,
             embedding_dim=self.embedding_dims,
+            padding_idx=0,
         )
 
         self.gru = torch.nn.GRU(

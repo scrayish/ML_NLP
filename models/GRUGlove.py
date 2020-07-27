@@ -20,13 +20,15 @@ class Model(nn.Module):
         self.word_count = word_count
         # Cieti noteikta vērtība, jo izmantoti iepriekš trenētas vērtības
         self.embedding_dims = 300
-        embeddings.append(torch.rand((self.embedding_dims, )))
+        embeddings.append(torch.rand((self.embedding_dims,)))
+        embeddings.insert(0, torch.zeros(self.embedding_dims, ))
         embedding_table = torch.stack(embeddings)
 
         # Definē iegultās vērtības
         self.embedding = torch.nn.Embedding.from_pretrained(
             embeddings=embedding_table,
             freeze=False,
+            padding_idx=0,
         )
 
         self.gru = torch.nn.GRU(

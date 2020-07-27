@@ -18,15 +18,18 @@ class Model(nn.Module):
 
         self.hidden_size = args.hidden_size
         self.word_count = word_count
-        # Cieti noteikta vērtība, jo izmantoti iepriekš trenētas vērtības
+        # Hard-coded value, since using pre-trained and know dimensions beforehand:
         self.embedding_dims = 300
-        embeddings.append(torch.rand((self.embedding_dims, )))
+        # Appending EOS token embedding and inserting padding embedding in 1st spot:
+        embeddings.append(torch.rand((self.embedding_dims,)))
+        embeddings.insert(0, torch.zeros(self.embedding_dims,))
         embedding_table = torch.stack(embeddings)
 
         # Definē iegultās vērtības
         self.embedding = torch.nn.Embedding.from_pretrained(
             embeddings=embedding_table,
             freeze=False,
+            padding_idx=0,
         )
 
         self.lstm = torch.nn.LSTM(
