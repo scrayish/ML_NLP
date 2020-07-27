@@ -247,10 +247,12 @@ def main():
                 y_t = y_t.to('cpu')
                 y_t = y_t.data.argmax()
                 y_sentence.append(y_t.data.numpy().tolist())
+                # If network generates EOS token, break the loop:
+                if y_t == end_token:
+                    break
 
                 y_t = y_t.reshape(shape=(1, 1))
                 y_prim.append(y_t.to(device))
-            pass
         else:
             # Using only 1 word, so batch size is 1
             h_s = None
