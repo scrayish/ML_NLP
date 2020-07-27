@@ -41,12 +41,23 @@ def main():
                         help='Load preprocessed data file')
     parser.add_argument('-hs', '--hidden_size', default=512, type=int,
                         help='Give hidden size which matches model hidden size (default = 512)')
+    parser.add_argument('-sau', '--s_a_unit_count', required=False, type=int, default=5,
+                        help="Self attention unit count for model (Transformer only)")
+    parser.add_argument('-lc', '--layer_count', required=False, type=int, default=2,
+                        help="How many encoding/decoding layers (Transformer only)")
+    parser.add_argument('-d', '--dimensions', required=False, type=int, default=64,
+                        help="Inner dimensions for Q, K, V Matrices (Transformer only)")
 
     args, other_args = parser.parse_known_args()
 
     Model = getattr(__import__('models.' + args.model, fromlist=['Model']), 'Model')
 
     device = 'cpu'
+
+    # If transformer spotted, use that:
+    transformer = False
+    if 'Transformer' in args.model:
+        transformer = True
 
     # Retrieve all things from prerocessed datafile
     all_quotes, vocabulary, \
@@ -55,7 +66,7 @@ def main():
 
     # Check model for embedding usage determination:
     emb_phrase = 'Glove'
-    if emb_phrase in args.model:
+    if emb_phrase in args.model or 'Transformer' in args.model:
         # Retrieve embeddings
         glove = GloVe('6B')
         embeddings = []
@@ -63,7 +74,7 @@ def main():
             embeddings.append(glove[word])
 
         # Initialize model
-        model = Model(args, end_token, embeddings).to(device=device)
+        model = Model(args, embeddings).to(device=device)
     else:
         model = Model(args, end_token).to(device=device)
 
@@ -105,33 +116,54 @@ def main():
 
         # Semantics check: if received a starting sequence longer than 1, manage that beforehand
         if seq_length > 1:
-            for fragment in input_data:
-                y_t = fragment
+            for i in range(len(input_data)):
+                y_t = input_data[i]
                 y_sentence.append(y_t.data.numpy())
-                y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
-                y_t, h_s = model.forward(y_t, h_s)
+                if transformer:
+
+                    # Take random only if last element of list:
+                    if input_data[i] == input_data[-1]:
+                        y = torch.randint(low=0, high=end_token + 1, size=y_t.size())
+                    else:
+                        y = input_data[i + 1]
+
+                    y_t = y_t.reshape(shape=(1, 1))
+                    y_t = model.forward(y_t, y)
+                else:
+                    y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
+                    y_t, h_s = model.forward(y_t, h_s)
 
                 # Since passed multiple words, but need only last output and last hidden,
                 # we pass only last output and take last hidden with us to model
                 y_t = y_t.data[-1].argmax()
-                if fragment == input_data[-1]:
-                    y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
+                if input_data[i] == input_data[-1]:
+                    y_t = y_t.reshape(shape=(1, 1))
+                    if not transformer:
+                        y_t = torch.nn.utils.rnn.pack_sequence(y_t)
                     y_prim.append(y_t)
         else:
             y_t = input_data
             y_sentence.append(y_t.data.numpy())
-            y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
+            y_t = y_t.reshape(shape=(1, 1))
+            if not transformer:
+                y_t = torch.nn.utils.rnn.pack_sequence(y_t)
             y_prim.append(y_t)
 
         for _ in range(length):
-            y_t, h_s = model.forward(y_prim[-1], h_s)
+            if transformer:
+                y = torch.randint(low=0, high=end_token + 1, size=y_t.size())
+                y_t = model.forward(y_prim[-1], y)
+            else:
+                y_t, h_s = model.forward(y_prim[-1], h_s)
 
             y_t = y_t.data.argmax()
             y_sentence.append(y_t.data.numpy())
             if y_t == end_token:
                 break
 
-            y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
+            y_t = y_t.reshape(shape=(1, 1))
+            if not transformer:
+                y_t = torch.nn.utils.rnn.pack_sequence(y_t)
             y_prim.append(y_t)
 
         for label in y_sentence:
