@@ -25,8 +25,7 @@ class Utility(object):
 
         return np.mean(f1_score(y_true, y_pred, average='macro'))
 
-        # Data labeling:
-
+    # Data labeling:
     @staticmethod
     def words_to_label(quotes, vocabulary, rollout=False):
         # If passing train/test data
@@ -96,8 +95,10 @@ class Utility(object):
             word_weight = 1.0 - word_count[word] / total_word_count
             word_weights.append(word_weight)
 
+        # Appending values for EOS token and padding token:
         word_weight = 1.0 - quote_count / total_word_count
         word_weights.append(word_weight)
+        word_weights.insert(0, 0.0)
         np_word_weights = np.array(word_weights)
         #np_word_weights /= np.sum(np_word_weights)
         t_word_weights =torch.FloatTensor(np_word_weights)
