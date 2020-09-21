@@ -22,14 +22,13 @@ class SelfAttentionUnit(nn.Module):
         self.masked = masked
         self.softmax = torch.nn.Softmax(dim=2)
 
-    def forward(self, q_matrix, k_matrix, v_matrix):
+    def forward(self, q_matrix, k_matrix, v_matrix, return_matrix=False):
 
         # Matrix multiplication between Q and K^T:
         q_k_matrix = torch.matmul(q_matrix, k_matrix.transpose_(2, 1))
 
         # Scaling result:
         q_k_scaled = q_k_matrix / self.dimensions
-        # TODO: Return scaled matrix out for inspection graphically
 
         # Masking outputs (Optional)
         if self.masked:
@@ -40,6 +39,10 @@ class SelfAttentionUnit(nn.Module):
         # Using softmax (Don't know about eps usage, maybe don't need to):
         q_k_softmaxed = self.softmax(q_k_scaled + 1e-16)
 
+        matrix = None
+        if return_matrix:
+            matrix = q_k_softmaxed.detach()
+
         # Final matmul operation:
         out = torch.matmul(q_k_softmaxed, v_matrix)
-        return out
+        return out, matrix

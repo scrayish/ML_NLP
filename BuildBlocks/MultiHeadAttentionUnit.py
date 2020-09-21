@@ -9,7 +9,8 @@ Multi-head attention unit for encoder/decoder:
 from __future__ import print_function
 import torch
 import torch.nn as nn
-from Transformer.SelfAttentionUnit import SelfAttentionUnit
+import numpy as np
+from BuildBlocks.SelfAttentionUnit import SelfAttentionUnit
 
 
 # Multi-Head attention class:
@@ -40,7 +41,7 @@ class MultiHeadAttentionUnit(nn.Module):
                                masked=self.need_mask) for i in range(self.self_attention_units)]
         )
 
-    def forward(self, q_matrix, k_matrix, v_matrix):
+    def forward(self, q_matrix, k_matrix, v_matrix, return_matrix=False):
 
         # Let all matrices through linears, accumulate all values:
         all_q_matrix_values = self.query_layer(q_matrix)
@@ -55,11 +56,13 @@ class MultiHeadAttentionUnit(nn.Module):
         end_index = self.dimensions
 
         # Iterate through all Self-attention units and receive their outputs:
+        matrix = None
         for unit in self.SelfAttentionUnits:
-            unit_output = unit.forward(
+            unit_output, matrix = unit.forward(
                 all_q_matrix_values[:, :, start_index:end_index],
                 all_k_matrix_values[:, :, start_index:end_index],
                 all_v_matrix_values[:, :, start_index:end_index],
+                return_matrix,
             )
             all_unit_outputs.append(unit_output)
             start_index += self.dimensions
@@ -68,4 +71,4 @@ class MultiHeadAttentionUnit(nn.Module):
         # Concatenate all outputs into one and final linear layer
         all_unit_outputs_concat = torch.cat(all_unit_outputs, dim=2)
         out = self.final_output_layer.forward(all_unit_outputs_concat)
-        return out
+        return out, matrix

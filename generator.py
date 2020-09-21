@@ -42,11 +42,11 @@ def main():
     parser.add_argument('-hs', '--hidden_size', default=512, type=int,
                         help='Give hidden size which matches model hidden size (default = 512)')
     parser.add_argument('-sau', '--s_a_unit_count', required=False, type=int, default=5,
-                        help="Self attention unit count for model (Transformer only)")
+                        help="Self attention unit count for model (BuildBlocks only)")
     parser.add_argument('-lc', '--layer_count', required=False, type=int, default=2,
-                        help="How many encoding/decoding layers (Transformer only)")
+                        help="How many encoding/decoding layers (BuildBlocks only)")
     parser.add_argument('-d', '--dimensions', required=False, type=int, default=64,
-                        help="Inner dimensions for Q, K, V Matrices (Transformer only)")
+                        help="Inner dimensions for Q, K, V Matrices (BuildBlocks only)")
 
     args, other_args = parser.parse_known_args()
 
@@ -56,7 +56,7 @@ def main():
 
     # If transformer spotted, use that:
     transformer = False
-    if 'Transformer' in args.model:
+    if 'BuildBlocks' in args.model:
         transformer = True
 
     # Retrieve all things from prerocessed datafile
@@ -66,7 +66,7 @@ def main():
 
     # Check model for embedding usage determination:
     emb_phrase = 'Glove'
-    if emb_phrase in args.model or 'Transformer' in args.model:
+    if emb_phrase in args.model or 'BuildBlocks' in args.model:
         # Retrieve embeddings
         glove = GloVe('6B')
         embeddings = []

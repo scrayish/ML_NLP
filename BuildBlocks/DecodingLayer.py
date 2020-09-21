@@ -9,7 +9,7 @@ Currently only base for building the model
 from __future__ import print_function
 import torch
 import torch.nn as nn
-from Transformer.MultiHeadAttentionUnit import MultiHeadAttentionUnit
+from BuildBlocks.MultiHeadAttentionUnit import MultiHeadAttentionUnit
 
 
 # Decoding layer class:
@@ -63,10 +63,11 @@ class DecodingLayer(nn.Module):
         q_matrix = self.embedding_to_query_1.forward(y)
         k_matrix = self.embedding_to_key_1.forward(y)
         v_matrix = self.embedding_to_value_1.forward(y)
-        multi_head_result = self.masked_multi_head_attention_unit.forward(
+        multi_head_result, matrix = self.masked_multi_head_attention_unit.forward(
             q_matrix=q_matrix,
             k_matrix=k_matrix,
             v_matrix=v_matrix,
+            return_matrix=False,
         )
 
         # Sum result with starting input and normalize:
@@ -77,10 +78,11 @@ class DecodingLayer(nn.Module):
         q_matrix = self.embedding_to_query_2.forward(encoder_x)
         k_matrix = self.embedding_to_key_2.forward(encoder_x)
         v_matrix = self.embedding_to_value_2.forward(normalized_result)
-        multi_head_result = self.multi_head_attention_unit.forward(
+        multi_head_result, matrix = self.multi_head_attention_unit.forward(
             q_matrix=q_matrix,
             k_matrix=k_matrix,
             v_matrix=v_matrix,
+            return_matrix=False,
         )
 
         # Sum result with previous unit output and normalize:

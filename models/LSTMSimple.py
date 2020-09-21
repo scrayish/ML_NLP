@@ -12,14 +12,14 @@ from torch.nn.utils.rnn import PackedSequence
 
 
 class Model(nn.Module):
-    def __init__(self, args, word_count):
+    def __init__(self, args, end_token):
         super(Model, self).__init__()
 
         self.hidden_size = args.hidden_size
-        # vērtību izmērs 300, lai sakristu ar GloVe
+        # 300 dimensions to be on par with GloVe:
         self.embedding_dims = 300
         self.embedding = torch.nn.Embedding(
-            num_embeddings=word_count + 1,
+            num_embeddings=end_token + 1,
             embedding_dim=self.embedding_dims,
             padding_idx=0,
         )
@@ -36,10 +36,10 @@ class Model(nn.Module):
         self.fc1 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.hidden_size)
         self.fc2 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.embedding_dims)
 
-        # Svaru un nobīdes inicializācija
+        # Weight/Bias initialization:
         for name, param in self.named_parameters():
             if 'weight' in name:
-                # Atkārtoti neinicializē iegulto vērtību svarus!
+                # Skip over embedding weights as to not ruin them:
                 if 'embedding' in name:
                     continue
                 nn.init.xavier_normal_(param)
