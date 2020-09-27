@@ -19,54 +19,57 @@ class MultiHeadAttentionUnit(nn.Module):
         super(MultiHeadAttentionUnit, self).__init__()
 
         # All needed size parameters:
-        self.self_attention_units = unit_count
+        self.self_attention_unit_count = unit_count
         self.dimensions = dimensions
         self.need_mask = need_mask
         self.embedding_dims = embedding_dims
 
         # Linear layers for multi-head:
-        # Create layers N times the size (N = heads), then split in N equal parts:
-        self.value_layer = torch.nn.Linear(in_features=self.dimensions,
-                                           out_features=self.self_attention_units * self.dimensions)
-        self.key_layer = torch.nn.Linear(in_features=self.dimensions,
-                                         out_features=self.self_attention_units * self.dimensions)
-        self.query_layer = torch.nn.Linear(in_features=self.dimensions,
-                                           out_features=self.self_attention_units * self.dimensions)
-        self.final_output_layer = torch.nn.Linear(in_features=self.self_attention_units * self.dimensions,
+        # Create ModuleList containing N linear layers (N = self attention unit count):
+        self.value_layers = torch.nn.ModuleList([
+            torch.nn.Linear(in_features=self.dimensions,
+                            out_features=self.dimensions) for i in range(self.self_attention_unit_count)
+        ])
+        self.key_layers = torch.nn.ModuleList([
+            torch.nn.Linear(in_features=self.dimensions,
+                            out_features=self.dimensions) for i in range(self.self_attention_unit_count)
+        ])
+        self.query_layers = torch.nn.ModuleList([
+            torch.nn.Linear(in_features=self.dimensions,
+                            out_features=self.dimensions) for i in range(self.self_attention_unit_count)
+        ])
+        self.final_output_layer = torch.nn.Linear(in_features=self.self_attention_unit_count * self.dimensions,
                                                   out_features=self.embedding_dims)
 
         # Self-attention units in a ModuleList (So can create dynamic models):
-        self.SelfAttentionUnits = torch.nn.ModuleList(
+        self.self_attention_units = torch.nn.ModuleList(
             [SelfAttentionUnit(dimensions=self.dimensions,
-                               masked=self.need_mask) for i in range(self.self_attention_units)]
+                               masked=self.need_mask) for i in range(self.self_attention_unit_count)]
         )
 
     def forward(self, q_matrix, k_matrix, v_matrix, return_matrix=False):
 
-        # Let all matrices through linears, accumulate all values:
-        all_q_matrix_values = self.query_layer(q_matrix)
-        all_k_matrix_values = self.key_layer(k_matrix)
-        all_v_matrix_values = self.value_layer(v_matrix)
-
-        # List to accumulate all outputs:
+        # List for all self attention unit outputs:
         all_unit_outputs = []
-
-        # Indices for iterating over all values from respective matrices:
-        start_index = 0
-        end_index = self.dimensions
-
-        # Iterate through all Self-attention units and receive their outputs:
         matrix = None
-        for unit in self.SelfAttentionUnits:
-            unit_output, matrix = unit.forward(
-                all_q_matrix_values[:, :, start_index:end_index],
-                all_k_matrix_values[:, :, start_index:end_index],
-                all_v_matrix_values[:, :, start_index:end_index],
-                return_matrix,
+        # Loop through all self attention units in MHA unit:
+        for i in range(self.self_attention_unit_count):
+
+            # Get V, K, Q for individual self attention unit:
+            v_unit = self.value_layers[i].forward(v_matrix)
+            k_unit = self.key_layers[i].forward(k_matrix)
+            q_unit = self.query_layers[i].forward(q_matrix)
+
+            # Pass individual matrices to the unit itself and get result:
+            unit_output, matrix = self.self_attention_units[i].forward(
+                q_matrix=q_unit,
+                k_matrix=k_unit,
+                v_matrix=v_unit,
+                return_matrix=return_matrix,
             )
+
+            # Accumulate all outputs:
             all_unit_outputs.append(unit_output)
-            start_index += self.dimensions
-            end_index += self.dimensions
 
         # Concatenate all outputs into one and final linear layer
         all_unit_outputs_concat = torch.cat(all_unit_outputs, dim=2)
