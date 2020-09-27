@@ -13,18 +13,18 @@ from torch.nn.utils.rnn import PackedSequence
 
 
 class Model(nn.Module):
-    def __init__(self, args, word_count, embeddings):
+    def __init__(self, args, embeddings):
         super(Model, self).__init__()
 
         self.hidden_size = args.hidden_size
-        self.word_count = word_count
-        # Cieti noteikta vērtība, jo izmantoti iepriekš trenētas vērtības
+        # 300 dimensions to be on par with GloVe:
         self.embedding_dims = 300
+        # Appending EOS token embedding and inserting padding embedding in 1st spot:
         embeddings.append(torch.rand((self.embedding_dims,)))
         embeddings.insert(0, torch.zeros(self.embedding_dims, ))
         embedding_table = torch.stack(embeddings)
 
-        # Definē iegultās vērtības
+        # Define embeddings:
         self.embedding = torch.nn.Embedding.from_pretrained(
             embeddings=embedding_table,
             freeze=False,
@@ -43,10 +43,10 @@ class Model(nn.Module):
         self.fc1 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.hidden_size)
         self.fc2 = torch.nn.Linear(in_features=self.hidden_size, out_features=self.embedding_dims)
 
-        # Svaru un nobīdes inicializācija
+        # Weight/Bias initialization:
         for name, param in self.named_parameters():
             if 'weight' in name:
-                # Atkārtoti neinicializē iegulto vērtību svarus!
+                # Skip over embedding weights as not to ruin them:
                 if 'embedding' in name:
                     continue
                 nn.init.xavier_normal_(param)
