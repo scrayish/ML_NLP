@@ -29,6 +29,8 @@ class Model(nn.Module):
             embedding_dim=300,
             padding_idx=0,
         )
+        # Disable gradient for positional embedding for consistency:
+        self.embedding_positional.weight.requires_grad = False
 
         # Extra variables:
         self.s_a_unit_count = args.s_a_unit_count
@@ -76,8 +78,8 @@ class Model(nn.Module):
         x_encoded = x_embedded + x_positional
 
         matrix = None
-        for layer in self.encoder:
-            x_encoded, matrix = layer.forward(x_encoded, return_matrix)
+        for i in range(len(self.encoder)):
+            x_encoded, matrix = self.encoder[i].forward(x_encoded, return_matrix)
 
         # Multiplication with transposed embedding:
         out = torch.matmul(x_encoded, self.embedding_word.weight.t())
