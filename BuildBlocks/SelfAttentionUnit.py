@@ -10,6 +10,7 @@ Currently embedding size = 300 because possibly using GloVe embeddings (most lik
 from __future__ import print_function
 import torch
 import torch.nn as nn
+import numpy as np
 
 
 # Self attention class which can be imported and used:
@@ -27,8 +28,8 @@ class SelfAttentionUnit(nn.Module):
         # Matrix multiplication between Q and K^T:
         q_k_matrix = torch.matmul(q_matrix, k_matrix.transpose_(2, 1))
 
-        # Scaling result:
-        q_k_scaled = q_k_matrix / self.dimensions
+        # Scaling result with square root value of inner dimensions:
+        q_k_scaled = q_k_matrix / np.sqrt(self.dimensions)
 
         # Masking outputs (Optional)
         if self.masked:
