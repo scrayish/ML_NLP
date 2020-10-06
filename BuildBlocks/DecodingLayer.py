@@ -22,17 +22,13 @@ class DecodingLayer(nn.Module):
         self.embedding_dims = embedding_dims
         self.ff_inner_dimension = ff_inner_dim
 
-        # Q, K, V matrices as linear layers (twice, as there are 2 MHA units in decoder):
-        self.embedding_to_query_1 = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.dimensions)
-        self.embedding_to_key_1 = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.dimensions)
-        self.embedding_to_value_1 = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.dimensions)
-
         self.embedding_to_query_2 = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.dimensions)
         self.embedding_to_key_2 = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.dimensions)
         self.embedding_to_value_2 = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.dimensions)
 
         # Define layer normalization (LayerNorm) https://arxiv.org/pdf/1607.06450.pdf:
-        self.layer_norm = torch.nn.LayerNorm(normalized_shape=self.embedding_dims)
+        self.layer_norm_1 = torch.nn.LayerNorm(normalized_shape=self.embedding_dims)
+        self.layer_norm_2 = torch.nn.LayerNorm(normalized_shape=self.embedding_dims)
 
         # Multi-head attention unit:
         self.multi_head_attention_unit = MultiHeadAttentionUnit(
@@ -59,29 +55,17 @@ class DecodingLayer(nn.Module):
 
     def forward(self, encoder_x, y):
 
-        # 1st make 3 matrices for masked multi-head attention unit:
-        q_matrix = self.embedding_to_query_1.forward(y)
-        k_matrix = self.embedding_to_key_1.forward(y)
-        v_matrix = self.embedding_to_value_1.forward(y)
         multi_head_result, matrix = self.masked_multi_head_attention_unit.forward(
-            q_matrix=q_matrix,
-            k_matrix=k_matrix,
-            v_matrix=v_matrix,
+            x=y,
             return_matrix=False,
         )
 
         # Sum result with starting input and normalize:
-        normalized_result = self.layer_norm.forward(y + multi_head_result)
+        normalized_result = self.layer_norm_1.forward(y + multi_head_result)
 
-        # It's either: go in straight forward, or go through value matrix again:
-        # But encoder outputs go in anyways through 2 matrices and go into second multi-head attention unit:
-        q_matrix = self.embedding_to_query_2.forward(encoder_x)
-        k_matrix = self.embedding_to_key_2.forward(encoder_x)
-        v_matrix = self.embedding_to_value_2.forward(normalized_result)
+        # Sum encoder result and normalized result to combine them for second MHA unit:
         multi_head_result, matrix = self.multi_head_attention_unit.forward(
-            q_matrix=q_matrix,
-            k_matrix=k_matrix,
-            v_matrix=v_matrix,
+            x=encoder_x + normalized_result,
             return_matrix=False,
         )
 

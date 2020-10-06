@@ -24,13 +24,9 @@ class EncodingLayer(nn.Module):
         self.ff_inner_dimension = ff_inner_dim
         self.masked = need_mask
 
-        # Q, K, V matrices as linear layers:
-        self.embedding_to_query = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.dimensions)
-        self.embedding_to_key = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.dimensions)
-        self.embedding_to_value = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.dimensions)
-
         # Define layer normalization (LayerNorm) https://arxiv.org/pdf/1607.06450.pdf:
-        self.layer_norm = torch.nn.LayerNorm(normalized_shape=self.embedding_dims)
+        self.layer_norm_1 = torch.nn.LayerNorm(normalized_shape=self.embedding_dims)
+        self.layer_norm_2 = torch.nn.LayerNorm(normalized_shape=self.embedding_dims)
 
         # Multi-head attention unit:
         self.multi_head_attention_unit = MultiHeadAttentionUnit(
@@ -49,25 +45,18 @@ class EncodingLayer(nn.Module):
 
     def forward(self, x, return_matrix):
 
-        # Turn embeddings into queries/keys/values:
-        q_matrix = self.embedding_to_query.forward(x)
-        k_matrix = self.embedding_to_key.forward(x)
-        v_matrix = self.embedding_to_value.forward(x)
-
-        # Send matrices into multi-head attention:
+        # Send data matrix into multi-head attention:
         mha_result, matrix = self.multi_head_attention_unit.forward(
-            q_matrix=q_matrix,
-            k_matrix=k_matrix,
-            v_matrix=v_matrix,
+            x=x,
             return_matrix=return_matrix,
         )
 
         # Sum Multi-head attention result with input and normalize:
-        ff_input = self.layer_norm(mha_result + x)
+        ff_input = self.layer_norm_1(mha_result + x)
 
         # Feed-Forward Neural network:
         out = self.feed_forward.forward(ff_input)
 
         # Sum result, normalize and pass out of the layer:
-        out = self.layer_norm(out + ff_input)
+        out = self.layer_norm_2(out + ff_input)
         return out, matrix

@@ -29,13 +29,15 @@ class Model(nn.Module):
             embedding_dim=300,
             padding_idx=0,
         )
-        # Disable gradient for positional embedding for consistency:
+
+        # Freeze positional embedding:
         self.embedding_positional.weight.requires_grad = False
 
         # Extra variables:
         self.s_a_unit_count = args.s_a_unit_count
         self.dimensions = args.dimensions
-        self.ff_inner_dim = 300  # In original paper inner dims = 4 * embedding dims
+        # In original paper inner dims = 4 * embedding_dims:
+        self.ff_inner_dim = self.s_a_unit_count * self.dimensions * 4
         self.layer_count = args.layer_count
 
         # Define encoder:

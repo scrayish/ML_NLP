@@ -9,7 +9,6 @@ Multi-head attention unit for encoder/decoder:
 from __future__ import print_function
 import torch
 import torch.nn as nn
-import numpy as np
 from BuildBlocks.SelfAttentionUnit import SelfAttentionUnit
 
 
@@ -27,15 +26,15 @@ class MultiHeadAttentionUnit(nn.Module):
         # Linear layers for multi-head:
         # Create ModuleList containing N linear layers (N = self attention unit count):
         self.value_layers = torch.nn.ModuleList([
-            torch.nn.Linear(in_features=self.dimensions,
+            torch.nn.Linear(in_features=self.embedding_dims,
                             out_features=self.dimensions) for i in range(self.self_attention_unit_count)
         ])
         self.key_layers = torch.nn.ModuleList([
-            torch.nn.Linear(in_features=self.dimensions,
+            torch.nn.Linear(in_features=self.embedding_dims,
                             out_features=self.dimensions) for i in range(self.self_attention_unit_count)
         ])
         self.query_layers = torch.nn.ModuleList([
-            torch.nn.Linear(in_features=self.dimensions,
+            torch.nn.Linear(in_features=self.embedding_dims,
                             out_features=self.dimensions) for i in range(self.self_attention_unit_count)
         ])
         self.final_output_layer = torch.nn.Linear(in_features=self.self_attention_unit_count * self.dimensions,
@@ -47,7 +46,7 @@ class MultiHeadAttentionUnit(nn.Module):
                                masked=self.need_mask) for i in range(self.self_attention_unit_count)]
         )
 
-    def forward(self, q_matrix, k_matrix, v_matrix, return_matrix=False):
+    def forward(self, x, return_matrix=False):
 
         # List for all self attention unit outputs:
         all_unit_outputs = []
@@ -56,9 +55,9 @@ class MultiHeadAttentionUnit(nn.Module):
         for i in range(self.self_attention_unit_count):
 
             # Get V, K, Q for individual self attention unit:
-            v_unit = self.value_layers[i].forward(v_matrix)
-            k_unit = self.key_layers[i].forward(k_matrix)
-            q_unit = self.query_layers[i].forward(q_matrix)
+            v_unit = self.value_layers[i].forward(x)
+            k_unit = self.key_layers[i].forward(x)
+            q_unit = self.query_layers[i].forward(x)
 
             # Pass individual matrices to the unit itself and get result:
             unit_output, matrix = self.self_attention_units[i].forward(
