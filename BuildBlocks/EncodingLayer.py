@@ -11,6 +11,7 @@ from __future__ import print_function
 import torch
 import torch.nn as nn
 from BuildBlocks.MultiHeadAttentionUnit import MultiHeadAttentionUnit
+from torch.nn import MultiheadAttention
 
 
 # Encoding layer class:
@@ -23,6 +24,11 @@ class EncodingLayer(nn.Module):
         self.embedding_dims = embedding_dims
         self.ff_inner_dimension = ff_inner_dim
         self.masked = need_mask
+
+        # Linear layers for getting Q, K, V matrices:
+        self.q_linear = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.embedding_dims)
+        self.k_linear = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.embedding_dims)
+        self.v_linear = torch.nn.Linear(in_features=self.embedding_dims, out_features=self.embedding_dims)
 
         # Define layer normalization (LayerNorm) https://arxiv.org/pdf/1607.06450.pdf:
         self.layer_norm_1 = torch.nn.LayerNorm(normalized_shape=self.embedding_dims)
@@ -44,14 +50,13 @@ class EncodingLayer(nn.Module):
         )
 
     def forward(self, x, return_matrix):
-
-        # Send data matrix into multi-head attention:
+        # Send data matrix into multi-head attention (Permute for max sequence length to be 1st dimension):
         mha_result, matrix = self.multi_head_attention_unit.forward(
             x=x,
             return_matrix=return_matrix,
         )
 
-        # Sum Multi-head attention result with input and normalize:
+        # Sum Multi-head attention result with input and normalize (Permute back previous change):
         ff_input = self.layer_norm_1(mha_result + x)
 
         # Feed-Forward Neural network:

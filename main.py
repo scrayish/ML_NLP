@@ -127,6 +127,10 @@ def main():
         model = Model(args, embeddings).to(device=device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
+    # Check model parameters:
+    for param in model.parameters():
+        print(type(param), param.size())
+
     fp = Path(args.path_weight_pretrained + f'/{args.model}_{args.index}_W.tar')
     IS_FILE = fp.is_file()
     loss_best = np.inf
@@ -233,18 +237,19 @@ def main():
                 )
 
         # TODO: Draw the matrix and add it to writer (Example in IRIS dataset classification somewhere there):
-        matrix_data = matrix[0]
-        matrix_data = matrix_data.data.to('cpu').numpy()
-        matrix_data = np.around(matrix_data, decimals=3)
-        quote = x[0].data.to('cpu').numpy().tolist()
-        for label in quote:
-            for key in vocabulary:
-                if vocabulary[key] == label:
-                    tick_quote.append(key)
-                    break
+        if matrix is not None:
+            matrix_data = matrix[0]
+            matrix_data = matrix_data.data.to('cpu').numpy()
+            matrix_data = np.around(matrix_data, decimals=3)
+            quote = x[0].data.to('cpu').numpy().tolist()
+            for label in quote:
+                for key in vocabulary:
+                    if vocabulary[key] == label:
+                        tick_quote.append(key)
+                        break
 
-        # Write confusion matrix to tensorboard writer:
-        tbu(writer).addPlotConfusionMatrix(matrix_data, ticks=tick_quote, tag='Context confidence', global_step=epoch + 1)
+            # Write confusion matrix to tensorboard writer:
+            tbu(writer).addPlotConfusionMatrix(matrix_data, ticks=tick_quote, tag='Context confidence', global_step=epoch + 1)
 
         # Save loss/accuracy measures to writer:
         for mode in model_work_modes:

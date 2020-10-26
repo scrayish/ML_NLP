@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from BuildBlocks.EncodingLayer import EncodingLayer
+from torch.nn import TransformerEncoderLayer
 
 
 # GPT Model class:
@@ -44,9 +45,9 @@ class Model(nn.Module):
         self.encoder = torch.nn.ModuleList([
             EncodingLayer(
                 s_a_unit_count=self.s_a_unit_count,
-                dimensions=self.dimensions,
+                dimensions=int(300 / self.s_a_unit_count),
                 embedding_dims=300,
-                ff_inner_dim=self.ff_inner_dim,
+                ff_inner_dim=1200,
                 need_mask=True,
             ) for i in range(self.layer_count)
         ])
