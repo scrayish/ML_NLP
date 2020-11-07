@@ -19,35 +19,36 @@ class Model(nn.Module):
     def __init__(self, args, end_token):
         super(Model, self).__init__()
 
+        # Extra variables:
+        self.s_a_unit_count = args.s_a_unit_count
+        self.dimensions = args.dimensions
+        # In original paper inner dims = 4 * embedding_dims:
+        self.ff_inner_dim = self.dimensions * 4
+        self.layer_count = args.layer_count
+
         # Define embeddings (embedding dims = 300 to be comparable with GloVe embeddings):
         self.embedding_word = torch.nn.Embedding(
             num_embeddings=end_token + 1,
-            embedding_dim=300,
+            embedding_dim=self.dimensions,
             padding_idx=0,
         )
+
         self.embedding_positional = torch.nn.Embedding(
             num_embeddings=100,
-            embedding_dim=300,
+            embedding_dim=self.dimensions,
             padding_idx=0,
         )
 
         # Freeze positional embedding:
         self.embedding_positional.weight.requires_grad = False
 
-        # Extra variables:
-        self.s_a_unit_count = args.s_a_unit_count
-        self.dimensions = args.dimensions
-        # In original paper inner dims = 4 * embedding_dims:
-        self.ff_inner_dim = self.s_a_unit_count * self.dimensions * 4
-        self.layer_count = args.layer_count
-
         # Define encoder:
         self.encoder = torch.nn.ModuleList([
             EncodingLayer(
                 s_a_unit_count=self.s_a_unit_count,
-                dimensions=int(300 / self.s_a_unit_count),
-                embedding_dims=300,
-                ff_inner_dim=1200,
+                dimensions=int(self.dimensions / self.s_a_unit_count),
+                embedding_dims=self.dimensions,
+                ff_inner_dim=self.ff_inner_dim,
                 need_mask=True,
             ) for i in range(self.layer_count)
         ])
