@@ -169,6 +169,7 @@ def main():
         tick_quote = []
 
         for data_set in dataloader_train, dataloader_test:
+
             for x, y, x_len in data_set:
                 if data_set is dataloader_train:
                     torch.set_grad_enabled(True)
@@ -266,20 +267,20 @@ def main():
             # Get starting word and generate random output for transformer:
             # 1st attempt - generating random sequence for decoder input.
             y_t = x[-1][0]
-            y_t = y_t.reshape(shape=(1, 1))
             y_sentence.append(y_t.data.numpy().tolist())
+            y_t = y_t.reshape(shape=(1, 1))
             y_prim.append(y_t.to(device))
             # Generate rollout sequence by feeding network output as input:
             for _ in range(25):
-                y_t, mtx = model.forward(y_prim[-1], return_matrix=False)
+                y_t, mtx = model.forward(torch.cat(y_prim, dim=0), return_matrix=False)
                 y_t = y_t.to('cpu')
-                y_t = y_t.data.argmax()
-                y_sentence.append(y_t.data.numpy().tolist())
+                y_t = y_t.data.argmax(dim=-1)
+                y_sentence.append(y_t[-1].data.numpy().squeeze())
+                y_t = y_t[-1].reshape((1, 1))
                 # If network generates EOS token, break the loop:
                 if y_t == end_token:
                     break
 
-                y_t = y_t.reshape(shape=(1, 1))
                 y_prim.append(y_t.to(device))
         else:
             # Using only 1 word, so batch size is 1
@@ -301,7 +302,7 @@ def main():
                 if y_t == end_token:
                     break
 
-                y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
+                y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(len(y_t), 1)))
                 y_prim.append(y_t.to(device))
 
         # Replace word labels with words from dictionary:
