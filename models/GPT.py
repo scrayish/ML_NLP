@@ -11,7 +11,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 from BuildBlocks.EncodingLayer import EncodingLayer
-from torch.nn import TransformerEncoderLayer
 
 
 # GPT Model class:

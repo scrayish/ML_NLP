@@ -4,6 +4,7 @@ Self attention unit:
 In features=embedding size, out features=dimensions parameter
 Currently embedding size = 300 because possibly using GloVe embeddings (most likely)
 
+
 """
 
 
