@@ -34,9 +34,8 @@ class SelfAttentionUnit(nn.Module):
         # Masking outputs (Optional)
         if self.masked:
             # Setting illegal (next-in-sequence) values to -Inf:
-            mask = torch.tril(torch.ones(q_k_scaled.size(-1),
-                                         q_k_scaled.size(-1))).view(1, q_k_scaled.size(-1), q_k_scaled.size(-1))
-            q_k_scaled = q_k_scaled.masked_fill(mask == 0, value=float('-inf'))
+            q_k_scaled = torch.tril(q_k_scaled, diagonal=0)
+            q_k_scaled.masked_fill_(q_k_scaled == 0, value=float('-inf'))
 
         # Using softmax (Don't know about eps usage, maybe don't need to):
         q_k_softmaxed = self.softmax(q_k_scaled + 1e-16)
