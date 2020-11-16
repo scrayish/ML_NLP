@@ -316,6 +316,9 @@ def main():
         rollout_string = ' '.join(rollout_sentence)
         writer.add_text(tag='Rollout sentence', text_string=rollout_string, global_step=epoch + 1)
 
+        # Print out rollout string just in case if writing to writer crashes again:
+        print("\n", rollout_string)
+
         # Write results to .csv file:
         if args.report is not None:
             write_to_csv(args, epoch, param_dict)
