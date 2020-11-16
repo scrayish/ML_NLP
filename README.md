@@ -22,3 +22,9 @@ pre_processing.py contains data preprocessing, also supports opening already pre
 utility.py contains utility functions used in preprocessing and other calculations
 
 generator.py is a generator program, which can be used to generate quotes, instructions given on top of file
+
+
+
+Update: 07.11.2020.
+
+As of July 2020 there have been small updates to repository with attempts to tackle the thesis problem using Transformer based (https://arxiv.org/abs/1706.03762) and GPT based (https://arxiv.org/abs/2005.14165) models. For the exact problem results seem to be weaker than RNN approaches, but that's possibly due to niche of problem and/or model implementation errors.
