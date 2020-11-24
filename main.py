@@ -19,6 +19,7 @@ from utility import Utility as util
 import dataset
 from csv_writer import write_to_csv
 from tensorboard_utils import TensorBoardUtils as tbu
+from tbx_custom_writer import CustomSummaryWriter
 
 
 def main():
@@ -57,6 +58,8 @@ def main():
                         help="How many encoding/decoding layers (Transformer/GPT)")
     parser.add_argument('-d', '--dimensions', required=False, type=int, default=32,
                         help="Inner dimensions for Q, K, V Matrices (Transformer/GPT)")
+    parser.add_argument('-pe', '--positional_embedding', required=False, type=lambda x: (str(x).lower() == 'true'),
+                        help="Positional embedding type. True = Sin/Cos function; False = embedding table (default)")
     parser.add_argument('-i', '--index', required=True, type=int,
                         help="Model index for formatting output .csv file")
     parser.add_argument('-r', '--report', required=False, type=str, default=None,
@@ -93,14 +96,18 @@ def main():
     # Hyper-parameters:
     comment = f'MODEL_{args.model}_INDEX_{args.index}_LR_{args.learning_rate}_BS_{args.batch_size}'
     if args.path_tbx_logs is None:
-        writer = SummaryWriter(comment=comment)
+        writer = CustomSummaryWriter(comment=comment)
     else:
-        writer = SummaryWriter(logdir=args.path_tbx_logs, comment=comment)
+        writer = CustomSummaryWriter(logdir=args.path_tbx_logs, comment=comment)
 
     epochs = args.epochs
     epoch = 0
     Model = getattr(__import__('models.' + args.model, fromlist=['Model']), 'Model')
     batch_size = args.batch_size
+    if args.positional_embedding:
+        embedding_mode = "Sin/Cos function"
+    else:
+        embedding_mode = "Table"
 
     train_loss = tnt.meter.AverageValueMeter()
     test_loss = tnt.meter.AverageValueMeter()
@@ -122,7 +129,12 @@ def main():
 
     # If embeddings are None, model doesn't need them, so initialize a bit differently
     if embeddings is None:
-        model = Model(args, end_token).to(device=device)
+
+        if "GPT" in args.model:
+            model = Model(args, end_token, sine_position=args.positional_embedding).to(device=device)
+        else:
+            model = Model(args, end_token).to(device=device)
+
     else:
         model = Model(args, embeddings).to(device=device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
@@ -257,6 +269,23 @@ def main():
             writer.add_scalar(f'{mode} loss', param_dict[f'{mode}_loss'].value()[0], global_step=epoch + 1)
             writer.add_scalar(f'{mode} accuracy', param_dict[f'{mode}_acc'].value()[0], global_step=epoch + 1)
 
+        # Save hyper-parameters in tensorboard writer:
+        writer.add_hparams(
+            hparam_dict={"learning_rate": args.learning_rate,
+                         "batch_size": batch_size,
+                         "epochs": epochs,
+                         "dimensions": args.dimensions,
+                         "layers": args.layer_count,
+                         "num_heads": args.s_a_unit_count,
+                         "embedding_mode": embedding_mode},
+            metric_dict={'train_loss': param_dict['train_loss'].value()[0],
+                         'test_loss': param_dict['test_loss'].value()[0],
+                         'train_acc': param_dict['train_acc'].value()[0],
+                         'test_acc': param_dict['test_acc'].value()[0]},
+            name=f'{args.model}_{args.index}_Hparams',
+            global_step=epoch + 1,
+        )
+
         # Rollout operation. Starting with default set parameters:
         # TODO: Fix rollout operation so previous elements are included for generating next words
         torch.set_grad_enabled(False)
@@ -315,9 +344,9 @@ def main():
         # Join words into one string and save to writer object as rollout result:
         rollout_string = ' '.join(rollout_sentence)
         writer.add_text(tag='Rollout sentence', text_string=rollout_string, global_step=epoch + 1)
-
+        writer.flush()
         # Print out rollout string just in case if writing to writer crashes again:
-        print("\n", rollout_string)
+        print(f"{args.model}_{args.index} epoch {epoch} rollout\n", rollout_string)
 
         # Write results to .csv file:
         if args.report is not None:
@@ -332,6 +361,9 @@ def main():
                 'loss': param_dict['test_loss'].value()[0]
             }
             torch.save(state, fp)
+
+    # Force flush so no info is lost:
+    writer.flush()
 
 
 if __name__ == '__main__':
