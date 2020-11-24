@@ -42,11 +42,13 @@ def main():
     parser.add_argument('-hs', '--hidden_size', default=512, type=int,
                         help='Give hidden size which matches model hidden size (default = 512)')
     parser.add_argument('-sau', '--s_a_unit_count', required=False, type=int, default=5,
-                        help="Self attention unit count for model (BuildBlocks only)")
+                        help="Self attention unit count for model (Transformer/GPT)")
     parser.add_argument('-lc', '--layer_count', required=False, type=int, default=2,
-                        help="How many encoding/decoding layers (BuildBlocks only)")
+                        help="How many encoding/decoding layers (Transformer/GPT)")
     parser.add_argument('-d', '--dimensions', required=False, type=int, default=64,
-                        help="Inner dimensions for Q, K, V Matrices (BuildBlocks only)")
+                        help="Inner dimensions for Q, K, V Matrices (Transformer/GPT)")
+    parser.add_argument('-pe', '--positional_embedding', required=False, type=lambda x: (str(x).lower() == 'true'),
+                        help="Positional embedding type. True = Sin/Cos function; False = embedding table (default)")
 
     args, other_args = parser.parse_known_args()
 
@@ -56,7 +58,7 @@ def main():
 
     # If transformer spotted, use that:
     transformer = False
-    if 'BuildBlocks' in args.model:
+    if 'Transformer' in args.model or 'GPT' in args.model:
         transformer = True
 
     # Retrieve all things from prerocessed datafile
@@ -66,7 +68,7 @@ def main():
 
     # Check model for embedding usage determination:
     emb_phrase = 'Glove'
-    if emb_phrase in args.model or 'BuildBlocks' in args.model:
+    if emb_phrase in args.model or 'Transformer' in args.model:
         # Retrieve embeddings
         glove = GloVe('6B')
         embeddings = []
@@ -76,7 +78,10 @@ def main():
         # Initialize model
         model = Model(args, embeddings).to(device=device)
     else:
-        model = Model(args, end_token).to(device=device)
+        if 'GPT' in args.model:
+            model = Model(args, end_token, sine_position=args.positional_embedding).to(device=device)
+        else:
+            model = Model(args, end_token).to(device=device)
 
     # Load model state dictionary and set up model for generating:
     state = torch.load(args.path_weights_pretrained, map_location=device)
@@ -88,7 +93,7 @@ def main():
 
     # Loop for generation, generate to your hearts content!
     generate = True
-    print("Quote Generator v1.0")
+    print("Quote Generator v1.1")
     print(f'Running model: {args.model}')
 
     while generate:
@@ -114,33 +119,29 @@ def main():
         # torch.zeros(size=(layers, 1, hidden_size)).to(device))
         h_s = None
 
-        # Semantics check: if received a starting sequence longer than 1, manage that beforehand
+        # Semantics check - if received a starting sequence longer than 1, manage that beforehand:
         if seq_length > 1:
             for i in range(len(input_data)):
                 y_t = input_data[i]
                 y_sentence.append(y_t.data.numpy())
+
+                # Checking if model is transformer, if not then prepare in advance:
                 if transformer:
+                    y_t = y_t.reshape((1, 1))
+                    y_prim.append(y_t)
 
-                    # Take random only if last element of list:
-                    if input_data[i] == input_data[-1]:
-                        y = torch.randint(low=0, high=end_token + 1, size=y_t.size())
-                    else:
-                        y = input_data[i + 1]
-
-                    y_t = y_t.reshape(shape=(1, 1))
-                    y_t = model.forward(y_t, y)
                 else:
                     y_t = torch.nn.utils.rnn.pack_sequence(y_t.reshape(shape=(1, 1)))
                     y_t, h_s = model.forward(y_t, h_s)
 
-                # Since passed multiple words, but need only last output and last hidden,
-                # we pass only last output and take last hidden with us to model
-                y_t = y_t.data[-1].argmax()
-                if input_data[i] == input_data[-1]:
-                    y_t = y_t.reshape(shape=(1, 1))
-                    if not transformer:
+                    # Since passed multiple words, but need only last output and last hidden,
+                    # we pass only last output and take last hidden with us to model
+                    y_t = y_t.data[-1].argmax()
+                    if input_data[i] == input_data[-1]:
+                        y_t = y_t.reshape(shape=(1, 1))
                         y_t = torch.nn.utils.rnn.pack_sequence(y_t)
-                    y_prim.append(y_t)
+                        y_prim.append(y_t)
+
         else:
             y_t = input_data
             y_sentence.append(y_t.data.numpy())
@@ -151,20 +152,27 @@ def main():
 
         for _ in range(length):
             if transformer:
-                y = torch.randint(low=0, high=end_token + 1, size=y_t.size())
-                y_t = model.forward(y_prim[-1], y)
+                y_t, mtx = model.forward(torch.cat(y_prim, dim=0), return_matrix=False)
+                y_t = y_t.data.argmax(dim=-1)
+                y_sentence.append(y_t[-1].data.numpy().squeeze())
+                y_t = y_t[-1].reshape((1, 1))
+
+                if y_t == end_token:
+                    break
+
+                y_prim.append(y_t)
+
             else:
                 y_t, h_s = model.forward(y_prim[-1], h_s)
 
-            y_t = y_t.data.argmax()
-            y_sentence.append(y_t.data.numpy())
-            if y_t == end_token:
-                break
+                y_t = y_t.data.argmax()
+                y_sentence.append(y_t.data.numpy())
+                if y_t == end_token:
+                    break
 
-            y_t = y_t.reshape(shape=(1, 1))
-            if not transformer:
+                y_t = y_t.reshape(shape=(1, 1))
                 y_t = torch.nn.utils.rnn.pack_sequence(y_t)
-            y_prim.append(y_t)
+                y_prim.append(y_t)
 
         for label in y_sentence:
             for key in vocabulary:
@@ -175,9 +183,7 @@ def main():
         rollout_string = ' '.join(rollout_sentence)
         print("Generated sequence:")
         print(rollout_string)
-
-        print()
-        print("Generate a new quote? [y/n]")
+        print("\nGenerate a new quote? [y/n]")
         response = input()
         if response == 'n' or response == 'N':
             generate = False
