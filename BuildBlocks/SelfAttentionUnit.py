@@ -2,7 +2,7 @@
 
 Self attention unit:
 In features=embedding size, out features=dimensions parameter
-Currently embedding size = 300 because possibly using GloVe embeddings (most likely)
+Currently embedding size = 256
 
 
 """
@@ -36,7 +36,8 @@ class SelfAttentionUnit(nn.Module):
         if self.masked:
             # Setting illegal (next-in-sequence) values to -Inf:
             mask = torch.tril(torch.ones(q_k_scaled.size(-1),
-                                         q_k_scaled.size(-1))).view(1, q_k_scaled.size(-1), q_k_scaled.size(-1))
+                                         q_k_scaled.size(-1))).view(1, q_k_scaled.size(-1),
+                                                                    q_k_scaled.size(-1)).to(q_k_scaled.device)
             q_k_scaled = q_k_scaled.masked_fill(mask == 0, value=float('-inf'))
 
         # Using softmax (Don't know about eps usage, maybe don't need to):
