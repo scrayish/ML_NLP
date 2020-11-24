@@ -15,7 +15,7 @@ from BuildBlocks.EncodingLayer import EncodingLayer
 
 # GPT Model class:
 class Model(nn.Module):
-    def __init__(self, args, end_token):
+    def __init__(self, args, end_token, sine_position=False):
         super(Model, self).__init__()
 
         # Extra variables:
@@ -32,14 +32,20 @@ class Model(nn.Module):
             padding_idx=0,
         )
 
-        self.embedding_positional = torch.nn.Embedding(
-            num_embeddings=100,
-            embedding_dim=self.dimensions,
-            padding_idx=0,
-        )
+        if sine_position:
+            self.embedding_positional = PositionalEncoding(
+                num_embeddings=100,
+                embedding_dim=self.dimensions,
+            )
+        else:
+            self.embedding_positional = torch.nn.Embedding(
+                num_embeddings=100,
+                embedding_dim=self.dimensions,
+                padding_idx=0,
+            )
 
-        # Freeze positional embedding:
-        self.embedding_positional.weight.requires_grad = False
+            # Freeze embeddings if using table:
+            self.embedding_positional.weight.requires_grad = False
 
         # Define encoder:
         self.encoder = torch.nn.ModuleList([
@@ -77,7 +83,7 @@ class Model(nn.Module):
 
         # Get embeddings and set up working principles:
         x_embedded = self.embedding_word.forward(x)
-        x_positional = self.embedding_positional.forward(sentence_nums_x.to(x.device))
+        x_positional = self.embedding_positional.forward(sentence_nums_x.to(x.device)).to(x.device)
         x_encoded = x_embedded + x_positional
 
         matrix = None
@@ -88,3 +94,19 @@ class Model(nn.Module):
         out = torch.matmul(x_encoded, self.embedding_word.weight.t())
         out = self.softmax.forward(out)
         return out, matrix
+
+
+# Sin/Cos positional encoding:
+class PositionalEncoding(torch.nn.Module):
+
+    def __init__(self, num_embeddings, embedding_dim):
+        super(PositionalEncoding, self).__init__()
+
+        self.pe = torch.zeros(num_embeddings, embedding_dim)
+        position = torch.arange(0, num_embeddings, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, embedding_dim, 2).float() * (-np.log(10000.0) / embedding_dim))
+        self.pe[:, 0::2] = torch.sin(position * div_term)
+        self.pe[:, 1::2] = torch.cos(position * div_term)
+
+    def forward(self, idxes):
+        return self.pe[idxes, :]
