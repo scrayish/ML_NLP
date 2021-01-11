@@ -14,36 +14,46 @@ from BuildBlocks.SelfAttentionUnit import SelfAttentionUnit
 
 # Multi-Head attention class:
 class MultiHeadAttentionUnit(nn.Module):
-    def __init__(self, unit_count, dimensions, embedding_dims, need_mask: bool):
+    def __init__(self, s_a_unit_count, dimensions, embedding_dims, need_mask: bool):
         super(MultiHeadAttentionUnit, self).__init__()
 
         # All needed size parameters:
-        self.self_attention_unit_count = unit_count
+        self.s_a_unit_count = s_a_unit_count
         self.dimensions = dimensions
         self.need_mask = need_mask
         self.embedding_dims = embedding_dims
 
-        # Linear layers for multi-head:
+        # FFNs for splitting input to query, key, value:
         # Create ModuleList containing N linear layers (N = self attention unit count):
         self.value_layers = torch.nn.ModuleList([
-            torch.nn.Linear(in_features=self.embedding_dims,
-                            out_features=self.dimensions) for i in range(self.self_attention_unit_count)
+            torch.nn.Sequential(
+                torch.nn.Linear(self.embedding_dims, self.dimensions),
+                torch.nn.ReLU(),
+                torch.nn.Linear(self.dimensions, self.dimensions),
+            ) for i in range(self.s_a_unit_count)
         ])
         self.key_layers = torch.nn.ModuleList([
-            torch.nn.Linear(in_features=self.embedding_dims,
-                            out_features=self.dimensions) for i in range(self.self_attention_unit_count)
+            torch.nn.Sequential(
+                torch.nn.Linear(self.embedding_dims, self.dimensions),
+                torch.nn.ReLU(),
+                torch.nn.Linear(self.dimensions, self.dimensions),
+            ) for i in range(self.s_a_unit_count)
         ])
         self.query_layers = torch.nn.ModuleList([
-            torch.nn.Linear(in_features=self.embedding_dims,
-                            out_features=self.dimensions) for i in range(self.self_attention_unit_count)
+            torch.nn.Sequential(
+                torch.nn.Linear(self.embedding_dims, self.dimensions),
+                torch.nn.ReLU(),
+                torch.nn.Linear(self.dimensions, self.dimensions),
+            ) for i in range(self.s_a_unit_count)
         ])
-        self.final_output_layer = torch.nn.Linear(in_features=self.self_attention_unit_count * self.dimensions,
-                                                  out_features=self.embedding_dims)
+
+        self.final_output_layer = torch.nn.Linear(in_features=self.s_a_unit_count * self.dimensions,
+                                                  out_features=self.s_a_unit_count * self.dimensions)
 
         # Self-attention units in a ModuleList (So can create dynamic models):
         self.self_attention_units = torch.nn.ModuleList(
             [SelfAttentionUnit(dimensions=self.dimensions,
-                               masked=self.need_mask) for i in range(self.self_attention_unit_count)]
+                               masked=self.need_mask) for i in range(self.s_a_unit_count)]
         )
 
     def forward(self, x, return_matrix=False):
@@ -52,7 +62,7 @@ class MultiHeadAttentionUnit(nn.Module):
         all_unit_outputs = []
         matrix = None
         # Loop through all self attention units in MHA unit:
-        for i in range(self.self_attention_unit_count):
+        for i in range(self.s_a_unit_count):
 
             # Get V, K, Q for individual self attention unit:
             v_unit = self.value_layers[i].forward(x)
