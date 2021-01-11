@@ -77,10 +77,16 @@ def main():
 
     # Determine if need to use GloVe embeddings:
     emb_phrase = 'Glove'
-    if emb_phrase in args.model or 'Transformer' in args.model:
+    if emb_phrase in args.model:
         use_glove = True
     else:
         use_glove = False
+
+    # Do a check for Transformer/GPT or LSTM/GRU for modifications in training loop:
+    if 'Transformer' in args.model or 'GPT' in args.model:
+        transformer = True
+    else:
+        transformer = False
 
     # Dataset formation
     dataset_train, dataset_test, vocabulary, word_count,\
@@ -108,7 +114,7 @@ def main():
         embedding_mode = "Sin/Cos function"
     else:
         embedding_mode = "Table"
-
+        
     train_loss = tnt.meter.AverageValueMeter()
     test_loss = tnt.meter.AverageValueMeter()
     train_acc = tnt.meter.AverageValueMeter()
@@ -130,7 +136,7 @@ def main():
     # If embeddings are None, model doesn't need them, so initialize a bit differently
     if embeddings is None:
 
-        if "GPT" in args.model:
+        if transformer:
             model = Model(args, end_token, sine_position=args.positional_embedding).to(device=device)
         else:
             model = Model(args, end_token).to(device=device)
@@ -165,12 +171,6 @@ def main():
 
     model_work_modes = ['train', 'test']
 
-    # Do a check for Transformer/GPT or LSTM/GRU for modifications in training loop:
-    if 'Transformer' in args.model or 'GPT' in args.model:
-        transformer = True
-    else:
-        transformer = False
-
     # Loop:
     for epoch in tqdm(range(epoch, epochs, 1), desc='training network', ncols=100):
 
@@ -183,6 +183,7 @@ def main():
         for data_set in dataloader_train, dataloader_test:
 
             for x, y, x_len in data_set:
+
                 if data_set is dataloader_train:
                     torch.set_grad_enabled(True)
                     mode = model_work_modes[0]
@@ -205,10 +206,24 @@ def main():
                     )
 
                     # Check if test set, if so, return matrix for plotting:
-                    if data_set is dataloader_test:
-                        y_prim, matrix = model.forward(x_padded.to(device), return_matrix=True)
+                    if "GPT" in args.model:
+                        if data_set is dataloader_test:
+                            y_prim, matrix = model.forward(x_padded.to(device), return_matrix=True)
+                        else:
+                            y_prim, matrix = model.forward(x_padded.to(device), return_matrix=False)
                     else:
-                        y_prim, matrix = model.forward(x_padded.to(device), return_matrix=False)
+                        if data_set is dataloader_test:
+                            y_prim, matrix = model.forward(
+                                x_padded.to(device),
+                                y_padded.to(device),
+                                return_matrix=True,
+                            )
+                        else:
+                            y_prim, matrix = model.forward(
+                                x_padded.to(device),
+                                y_padded.to(device),
+                                return_matrix=False,
+                            )
 
                 else:
                     h_s = None
@@ -236,6 +251,7 @@ def main():
                 y_target = (y_target == tmp).float()   # one hot encoded 0.0 or 1.0
 
                 # Calculate loss:
+                # TODO: Internal rollout to force model to learn not to spam shit over and over on loop:
                 loss = torch.mean(-torch.sum(weight_coefficients * y_target * torch.log(y_prim + 1e-16),
                                              dim=1))
 
@@ -249,7 +265,9 @@ def main():
                     util.f1score(y_target.detach().to('cpu'), y_prim.detach().to('cpu'))
                 )
 
-        # TODO: Draw the matrix and add it to writer (Example in IRIS dataset classification somewhere there):
+                if i > 4:
+                    break
+
         if matrix is not None:
             matrix_data = matrix[0]
             matrix_data = matrix_data.data.to('cpu').numpy()
@@ -287,21 +305,24 @@ def main():
         )
 
         # Rollout operation. Starting with default set parameters:
-        # TODO: Fix rollout operation so previous elements are included for generating next words
         torch.set_grad_enabled(False)
         y_prim = []
         y_sentence = []
         rollout_sentence = []
         if transformer:
             # Get starting word and generate random output for transformer:
-            # 1st attempt - generating random sequence for decoder input.
             y_t = x[-1][0]
             y_sentence.append(y_t.data.numpy().tolist())
             y_t = y_t.reshape(shape=(1, 1))
             y_prim.append(y_t.to(device))
+
             # Generate rollout sequence by feeding network output as input:
+            y = None
             for _ in range(25):
-                y_t, mtx = model.forward(torch.cat(y_prim, dim=0), return_matrix=False)
+                if "GPT" in args.model:
+                    y_t, mtx = model.forward(torch.cat(y_prim, dim=0), return_matrix=False)
+                else:
+                    y_t, mtx = model.forward(torch.cat(y_prim, dim=0), y, return_matrix=False)
                 y_t = y_t.to('cpu')
                 y_t = y_t.data.argmax(dim=-1)
                 y_sentence.append(y_t[-1].data.numpy().squeeze())
